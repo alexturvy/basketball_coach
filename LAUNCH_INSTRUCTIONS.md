@@ -50,13 +50,27 @@ Your Google API key has been securely added to `backend/.env` and is excluded fr
 - ✅ Protected from git commits
 - ✅ Ready to use
 
-## Testing the Application
+## Using the Application
 
-1. **Allow Camera Access**: When prompted, grant camera permissions
-2. **Select Skill Level**: Choose Beginner, Intermediate, or Advanced
-3. **Pick a Drill**: Select from skill-appropriate drills
-4. **Start Dribbling**: The app will detect motion and record 3-second sequences
-5. **Get Feedback**: Receive AI-powered coaching analysis
+### The Coaching Flow:
+
+1. **Initial Assessment**: 
+   - Allow camera access when prompted
+   - Start dribbling naturally in front of the camera
+   - The coach will analyze your technique for 8 seconds
+
+2. **Get Your Results**:
+   - Review "What I Noticed" - personalized assessment of your dribbling
+   - See recommended drills based on your skill level and areas for improvement
+
+3. **Practice Drills**:
+   - Select from AI-recommended drills tailored to your needs
+   - Get real-time feedback on your drill performance
+   - The coach analyzes your execution and provides improvement tips
+
+4. **Continue Training**:
+   - Practice multiple drills or restart assessment anytime
+   - Build skills progressively with intelligent recommendations
 
 ## Troubleshooting
 
@@ -92,11 +106,13 @@ Your Google API key has been securely added to `backend/.env` and is excluded fr
 
 ## System Features
 
-- **Video Sequence Analysis**: Records 3-second clips when motion detected
+- **Intelligent Assessment**: Analyzes your dribbling and creates personalized training plans
+- **Coach-Like Flow**: Initial assessment → Results → Recommended drills → Performance feedback
+- **8-Second Video Analysis**: Captures complete dribbling patterns for meaningful analysis
 - **YMCA-Based Curriculum**: Professional youth basketball training drills
 - **AI Coaching**: Google Gemini provides technique analysis and tips
-- **Progressive Training**: Skill-based drill recommendations
-- **Real-time Feedback**: Immediate coaching insights
+- **Adaptive Recommendations**: Drills suggested based on your specific needs and skill level
+- **Real-time Performance Feedback**: Immediate coaching during drill practice
 
 ## Support
 
