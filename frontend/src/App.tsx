@@ -50,11 +50,11 @@ function App() {
           };
           
           // Setup MediaRecorder for video sequences with fallback codec
-          let mediaRecorderOptions = { mimeType: 'video/webm;codecs=vp9' };
-          if (!MediaRecorder.isTypeSupported(mediaRecorderOptions.mimeType)) {
+          let mediaRecorderOptions: MediaRecorderOptions = { mimeType: 'video/webm;codecs=vp9' };
+          if (!MediaRecorder.isTypeSupported(mediaRecorderOptions.mimeType!)) {
             mediaRecorderOptions = { mimeType: 'video/webm' };
-            if (!MediaRecorder.isTypeSupported(mediaRecorderOptions.mimeType)) {
-              mediaRecorderOptions = {}; // Use default
+            if (!MediaRecorder.isTypeSupported(mediaRecorderOptions.mimeType!)) {
+              mediaRecorderOptions = { mimeType: 'video/webm' }; // Use basic webm as fallback
             }
           }
           
@@ -115,7 +115,7 @@ function App() {
           drills.push('One on One Dribbling', 'Sharks & Minnows');
         }
         
-        setRecommendedDrills([...new Set(drills)]); // Remove duplicates
+        setRecommendedDrills(Array.from(new Set(drills))); // Remove duplicates
       } else if (phase === 'drilling') {
         // Drill-specific feedback
         setDrillFeedback(data);
