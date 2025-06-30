@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import './App.css';
 
-const MOTION_THRESHOLD = 50000;
+const MOTION_THRESHOLD = 25000; // Lower threshold = more sensitive
 const SEQUENCE_DURATION = 8000; // 8 seconds of video - better for analyzing dribbling patterns
 const ANALYSIS_INTERVAL = 12000; // Analyze every 12 seconds to avoid overwhelming API
 
@@ -54,17 +54,38 @@ function App() {
             setCameraReady(true);
           };
           
-          // Setup MediaRecorder for video sequences with fallback codec
-          let mediaRecorderOptions: MediaRecorderOptions = { mimeType: 'video/webm;codecs=vp9' };
-          if (!MediaRecorder.isTypeSupported(mediaRecorderOptions.mimeType!)) {
-            mediaRecorderOptions = { mimeType: 'video/webm' };
-            if (!MediaRecorder.isTypeSupported(mediaRecorderOptions.mimeType!)) {
-              mediaRecorderOptions = { mimeType: 'video/webm' }; // Use basic webm as fallback
+          // Setup MediaRecorder for video sequences with better codec fallbacks
+          let mediaRecorderOptions: MediaRecorderOptions = {};
+          
+          // Try different codecs in order of preference
+          const codecs = [
+            'video/webm;codecs=vp9',
+            'video/webm;codecs=vp8', 
+            'video/webm',
+            'video/mp4',
+            '' // Default
+          ];
+          
+          for (const codec of codecs) {
+            const options = codec ? { mimeType: codec } : {};
+            if (!codec || MediaRecorder.isTypeSupported(codec)) {
+              mediaRecorderOptions = options;
+              console.log('Using MediaRecorder codec:', codec || 'default');
+              break;
             }
           }
           
-          const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
-          mediaRecorderRef.current = mediaRecorder;
+          try {
+            const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
+            mediaRecorderRef.current = mediaRecorder;
+            console.log('MediaRecorder created successfully');
+          } catch (codecError) {
+            console.error('MediaRecorder creation failed, trying default:', codecError);
+            // Fallback to default (no codec specified)
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            console.log('MediaRecorder created with default codec');
+          }
           
           mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
@@ -177,6 +198,12 @@ function App() {
               diff += Math.abs(currentFrameData[i + 1] - prevFrameData.current[i + 1]);
               diff += Math.abs(currentFrameData[i + 2] - prevFrameData.current[i + 2]);
             }
+            
+            // Debug motion detection every 2 seconds
+            if (Date.now() % 2000 < 200) {
+              console.log('Motion diff:', diff, 'Threshold:', MOTION_THRESHOLD, 'Motion detected:', diff > MOTION_THRESHOLD);
+            }
+            
             if (diff > MOTION_THRESHOLD) {
               motionDetected = true;
             }
