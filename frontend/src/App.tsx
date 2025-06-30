@@ -27,12 +27,16 @@ function App() {
   const [initialAssessment, setInitialAssessment] = useState<CoachingResponse | null>(null);
   const [drillFeedback, setDrillFeedback] = useState<CoachingResponse | null>(null);
   const [recommendedDrills, setRecommendedDrills] = useState<string[]>([]);
+  const [cameraReady, setCameraReady] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   
   const prevFrameData = useRef<Uint8ClampedArray | null>(null);
   const lastAnalysisTime = useRef<number>(0);
 
   useEffect(() => {
     async function setupCamera() {
+      console.log('Basketball Coach: Setting up camera...');
+      console.log('API URL:', process.env.REACT_APP_API_URL || 'http://localhost:8000');
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: { 
@@ -47,6 +51,7 @@ function App() {
           // Wait for video metadata to load
           videoRef.current.onloadedmetadata = () => {
             console.log("Video metadata loaded, dimensions:", videoRef.current?.videoWidth, "x", videoRef.current?.videoHeight);
+            setCameraReady(true);
           };
           
           // Setup MediaRecorder for video sequences with fallback codec
@@ -75,6 +80,7 @@ function App() {
         }
       } catch (err) {
         console.error("Error accessing camera: ", err);
+        setError("Could not access camera. Please check permissions and ensure you're using HTTPS.");
         setFeedback("Error: Could not access camera. Please check permissions.");
       }
     }
@@ -210,10 +216,66 @@ function App() {
     setFeedback("Basketball Dribbling Coach - Start dribbling to begin your assessment!");
   };
 
+  // Simple error boundary
+  if (error) {
+    return (
+      <div className="App">
+        <header className="App-header">
+          <h1>🏀 Basketball Dribbling Coach</h1>
+          <div style={{ 
+            padding: '20px', 
+            backgroundColor: '#f8d7da', 
+            color: '#721c24',
+            borderRadius: '8px',
+            maxWidth: '600px',
+            margin: '20px'
+          }}>
+            <h3>⚠️ Setup Issue</h3>
+            <p>{error}</p>
+            <p><strong>Troubleshooting:</strong></p>
+            <ul style={{ textAlign: 'left' }}>
+              <li>Make sure you're using HTTPS (not HTTP)</li>
+              <li>Check browser permissions for camera access</li>
+              <li>Try refreshing the page</li>
+              <li>Try a different browser (Chrome works best)</li>
+            </ul>
+            <button 
+              onClick={() => window.location.reload()} 
+              style={{ 
+                padding: '10px 20px',
+                backgroundColor: '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '5px',
+                cursor: 'pointer',
+                marginTop: '10px'
+              }}
+            >
+              🔄 Reload Page
+            </button>
+          </div>
+        </header>
+      </div>
+    );
+  }
+
   return (
     <div className="App">
       <header className="App-header">
         <h1>🏀 Basketball Dribbling Coach</h1>
+        
+        {!cameraReady && (
+          <div style={{ 
+            padding: '15px', 
+            backgroundColor: '#fff3cd', 
+            borderRadius: '8px',
+            color: '#333',
+            marginBottom: '20px',
+            maxWidth: '600px'
+          }}>
+            <p>📹 Setting up camera... Please allow camera access when prompted.</p>
+          </div>
+        )}
         
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
           {/* Video Feed */}
