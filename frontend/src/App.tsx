@@ -12,18 +12,21 @@ interface CoachingResponse {
   tips?: string[];
 }
 
+type AppPhase = 'initial' | 'assessing' | 'results' | 'drilling';
+
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const videoChunksRef = useRef<Blob[]>([]);
   
-  const [feedback, setFeedback] = useState<string>("Waiting for video feed...");
+  const [phase, setPhase] = useState<AppPhase>('initial');
+  const [feedback, setFeedback] = useState<string>("Basketball Dribbling Coach - Start dribbling to begin your assessment!");
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [currentDrill, setCurrentDrill] = useState<string | null>(null);
-  const [coachingData, setCoachingData] = useState<CoachingResponse | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<string>("beginner");
-  const [availableDrills, setAvailableDrills] = useState<any>({});
+  const [initialAssessment, setInitialAssessment] = useState<CoachingResponse | null>(null);
+  const [drillFeedback, setDrillFeedback] = useState<CoachingResponse | null>(null);
+  const [recommendedDrills, setRecommendedDrills] = useState<string[]>([]);
   
   const prevFrameData = useRef<Uint8ClampedArray | null>(null);
   const lastAnalysisTime = useRef<number>(0);
@@ -91,11 +94,32 @@ function App() {
       });
 
       const data = await response.json();
-      setCoachingData(data);
-      setFeedback(data.feedback);
       
-      if (data.drillSuggestion && !currentDrill) {
-        setCurrentDrill(data.drillSuggestion);
+      if (phase === 'initial' || phase === 'assessing') {
+        // Initial assessment phase
+        setInitialAssessment(data);
+        setPhase('results');
+        setFeedback("Analysis complete! Here's what I noticed...");
+        
+        // Set recommended drills based on assessment
+        const drills = [];
+        if (data.drillSuggestion) drills.push(data.drillSuggestion);
+        
+        // Add skill-appropriate drills based on feedback content
+        const feedbackLower = data.feedback.toLowerCase();
+        if (feedbackLower.includes('beginner') || feedbackLower.includes('basic')) {
+          drills.push('Basic Stationary Dribble', 'Righty-Lefty Drill');
+        } else if (feedbackLower.includes('intermediate')) {
+          drills.push('Head Up Dribbling', 'Dribbling Around Cones');
+        } else if (feedbackLower.includes('advanced')) {
+          drills.push('One on One Dribbling', 'Sharks & Minnows');
+        }
+        
+        setRecommendedDrills([...new Set(drills)]); // Remove duplicates
+      } else if (phase === 'drilling') {
+        // Drill-specific feedback
+        setDrillFeedback(data);
+        setFeedback(`${currentDrill} - ${data.feedback}`);
       }
     } catch (error) {
       console.error('Error analyzing video sequence:', error);
@@ -135,11 +159,17 @@ function App() {
 
           const currentTime = Date.now();
           
-          // Start recording when motion is detected
+          // Start recording when motion is detected - behavior depends on phase
           if (motionDetected && !isRecording && (currentTime - lastAnalysisTime.current > ANALYSIS_INTERVAL)) {
             setIsRecording(true);
             mediaRecorderRef.current.start();
-            setFeedback("Recording dribbling sequence...");
+            
+            if (phase === 'initial') {
+              setPhase('assessing');
+              setFeedback("Analyzing your dribbling technique...");
+            } else if (phase === 'drilling') {
+              setFeedback(`Recording ${currentDrill} performance...`);
+            }
             
             // Stop recording after SEQUENCE_DURATION
             setTimeout(() => {
@@ -155,141 +185,231 @@ function App() {
     }, 200);
 
     return () => clearInterval(interval);
-  }, [isRecording, currentDrill]);
+  }, [isRecording, currentDrill, phase]);
 
   const startDrill = (drillName: string) => {
     setCurrentDrill(drillName);
-    setFeedback(`Starting ${drillName} drill. Begin dribbling!`);
+    setPhase('drilling');
+    setDrillFeedback(null);
+    setFeedback(`Starting ${drillName} drill. Begin dribbling to get feedback!`);
   };
 
   const stopDrill = () => {
     setCurrentDrill(null);
-    setFeedback("Drill stopped. Ready for general analysis.");
+    setPhase('results');
+    setDrillFeedback(null);
+    setFeedback("Drill stopped. Choose another drill or restart assessment.");
+  };
+
+  const restartAssessment = () => {
+    setPhase('initial');
+    setCurrentDrill(null);
+    setInitialAssessment(null);
+    setDrillFeedback(null);
+    setRecommendedDrills([]);
+    setFeedback("Basketball Dribbling Coach - Start dribbling to begin your assessment!");
   };
 
   return (
     <div className="App">
       <header className="App-header">
-        <h1>Basketball Coach AI</h1>
+        <h1>🏀 Basketball Dribbling Coach</h1>
         
         <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+          {/* Video Feed */}
           <div>
             <video ref={videoRef} autoPlay playsInline muted width="640" height="480"></video>
             <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
             
             <div style={{ marginTop: '10px' }}>
               <div style={{ 
-                padding: '10px', 
+                padding: '15px', 
                 backgroundColor: isRecording ? '#ff4444' : '#333', 
-                borderRadius: '5px',
-                color: 'white'
+                borderRadius: '8px',
+                color: 'white',
+                fontSize: '16px'
               }}>
                 {isRecording && '🔴 Recording...'}
-                <p>{feedback}</p>
+                <p style={{ margin: 0 }}>{feedback}</p>
               </div>
             </div>
           </div>
           
-          <div style={{ minWidth: '300px', textAlign: 'left' }}>
-            <h3>Current Drill</h3>
-            {currentDrill ? (
+          {/* Coaching Panel */}
+          <div style={{ minWidth: '350px', textAlign: 'left' }}>
+            
+            {/* Initial Phase */}
+            {phase === 'initial' && (
               <div>
-                <p><strong>{currentDrill}</strong></p>
-                <button onClick={stopDrill} style={{ padding: '5px 10px' }}>
-                  Stop Drill
-                </button>
-              </div>
-            ) : (
-              <div>
-                <p>No active drill</p>
-                
-                <div style={{ marginBottom: '10px' }}>
-                  <label>Skill Level: </label>
-                  <select 
-                    value={selectedCategory} 
-                    onChange={(e) => setSelectedCategory(e.target.value)}
-                    style={{ marginLeft: '5px', padding: '2px' }}
-                  >
-                    <option value="beginner">Beginner</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
-                  </select>
-                </div>
-                
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                  {selectedCategory === 'beginner' && (
-                    <>
-                      <button onClick={() => startDrill('Basic Stationary Dribble')} style={{ padding: '5px 10px' }}>
-                        Basic Stationary Dribble
-                      </button>
-                      <button onClick={() => startDrill('Righty-Lefty Drill')} style={{ padding: '5px 10px' }}>
-                        Righty-Lefty Drill
-                      </button>
-                      <button onClick={() => startDrill('Red Light Green Light')} style={{ padding: '5px 10px' }}>
-                        Red Light Green Light
-                      </button>
-                      <button onClick={() => startDrill('Space Man Drill')} style={{ padding: '5px 10px' }}>
-                        Space Man Drill
-                      </button>
-                    </>
-                  )}
-                  
-                  {selectedCategory === 'intermediate' && (
-                    <>
-                      <button onClick={() => startDrill('Dribbling Around Cones')} style={{ padding: '5px 10px' }}>
-                        Dribbling Around Cones
-                      </button>
-                      <button onClick={() => startDrill('Follow the Leader')} style={{ padding: '5px 10px' }}>
-                        Follow the Leader
-                      </button>
-                      <button onClick={() => startDrill('Head Up Dribbling')} style={{ padding: '5px 10px' }}>
-                        Head Up Dribbling
-                      </button>
-                      <button onClick={() => startDrill('Engine & Caboose Drill')} style={{ padding: '5px 10px' }}>
-                        Engine & Caboose
-                      </button>
-                    </>
-                  )}
-                  
-                  {selectedCategory === 'advanced' && (
-                    <>
-                      <button onClick={() => startDrill('One on One Dribbling')} style={{ padding: '5px 10px' }}>
-                        One on One Dribbling
-                      </button>
-                      <button onClick={() => startDrill('Sharks & Minnows')} style={{ padding: '5px 10px' }}>
-                        Sharks & Minnows
-                      </button>
-                      <button onClick={() => startDrill('Change Direction Drill')} style={{ padding: '5px 10px' }}>
-                        Change Direction
-                      </button>
-                      <button onClick={() => startDrill('Dribble Around Defenders')} style={{ padding: '5px 10px' }}>
-                        Dribble Around Defenders
-                      </button>
-                    </>
-                  )}
+                <h3>Welcome to Your Personal Dribbling Coach!</h3>
+                <p>I'll analyze your dribbling and create a personalized training plan.</p>
+                <div style={{ 
+                  padding: '15px', 
+                  backgroundColor: '#e8f4fd', 
+                  borderRadius: '8px',
+                  color: '#333',
+                  marginTop: '10px'
+                }}>
+                  <p><strong>🎯 Ready to start?</strong></p>
+                  <p>Just start dribbling in front of the camera. I'll watch your technique and give you specific areas to work on!</p>
                 </div>
               </div>
             )}
-            
-            {coachingData && (
-              <div style={{ marginTop: '20px' }}>
-                <h3>Coaching Analysis</h3>
-                {coachingData.technique && (
-                  <p><strong>Technique:</strong> {coachingData.technique}</p>
-                )}
-                {coachingData.tips && coachingData.tips.length > 0 && (
-                  <div>
-                    <strong>Tips:</strong>
-                    <ul style={{ textAlign: 'left' }}>
-                      {coachingData.tips.map((tip, index) => (
-                        <li key={index}>{tip}</li>
-                      ))}
-                    </ul>
+
+            {/* Assessing Phase */}
+            {phase === 'assessing' && (
+              <div>
+                <h3>Analyzing Your Technique...</h3>
+                <div style={{ 
+                  padding: '15px', 
+                  backgroundColor: '#fff3cd', 
+                  borderRadius: '8px',
+                  color: '#333'
+                }}>
+                  <p>🔍 I'm watching your dribbling form, rhythm, and control...</p>
+                  <p>Keep dribbling naturally - this will only take a moment!</p>
+                </div>
+              </div>
+            )}
+
+            {/* Results Phase */}
+            {phase === 'results' && initialAssessment && (
+              <div>
+                <h3>📊 Assessment Results</h3>
+                
+                <div style={{ 
+                  padding: '15px', 
+                  backgroundColor: '#d4edda', 
+                  borderRadius: '8px',
+                  color: '#333',
+                  marginBottom: '15px'
+                }}>
+                  <h4>What I Noticed:</h4>
+                  <p>{initialAssessment.feedback}</p>
+                  
+                  {initialAssessment.technique && (
+                    <p><strong>Key Focus Area:</strong> {initialAssessment.technique}</p>
+                  )}
+                  
+                  {initialAssessment.tips && initialAssessment.tips.length > 0 && (
+                    <div>
+                      <strong>Quick Tips:</strong>
+                      <ul>
+                        {initialAssessment.tips.map((tip, index) => (
+                          <li key={index}>{tip}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+
+                <h4>Recommended Drills:</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {recommendedDrills.map((drill, index) => (
+                    <button 
+                      key={index}
+                      onClick={() => startDrill(drill)} 
+                      style={{ 
+                        padding: '12px 15px',
+                        backgroundColor: '#007bff',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '5px',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                    >
+                      🎯 {drill}
+                    </button>
+                  ))}
+                </div>
+                
+                <button 
+                  onClick={restartAssessment}
+                  style={{ 
+                    padding: '10px 15px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px',
+                    cursor: 'pointer',
+                    marginTop: '15px',
+                    fontSize: '14px'
+                  }}
+                >
+                  🔄 New Assessment
+                </button>
+              </div>
+            )}
+
+            {/* Drilling Phase */}
+            {phase === 'drilling' && currentDrill && (
+              <div>
+                <h3>🎯 {currentDrill}</h3>
+                
+                <div style={{ 
+                  padding: '15px', 
+                  backgroundColor: '#fff3cd', 
+                  borderRadius: '8px',
+                  color: '#333',
+                  marginBottom: '15px'
+                }}>
+                  <p>Practice this drill and I'll give you real-time feedback on your performance!</p>
+                </div>
+
+                {drillFeedback && (
+                  <div style={{ 
+                    padding: '15px', 
+                    backgroundColor: '#d4edda', 
+                    borderRadius: '8px',
+                    color: '#333',
+                    marginBottom: '15px'
+                  }}>
+                    <h4>Performance Feedback:</h4>
+                    <p>{drillFeedback.feedback}</p>
+                    
+                    {drillFeedback.tips && drillFeedback.tips.length > 0 && (
+                      <div>
+                        <strong>Improvement Tips:</strong>
+                        <ul>
+                          {drillFeedback.tips.map((tip, index) => (
+                            <li key={index}>{tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
-                {coachingData.drillSuggestion && (
-                  <p><strong>Suggested Drill:</strong> {coachingData.drillSuggestion}</p>
-                )}
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={stopDrill}
+                    style={{ 
+                      padding: '10px 15px',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ⏹️ Stop Drill
+                  </button>
+                  
+                  <button 
+                    onClick={restartAssessment}
+                    style={{ 
+                      padding: '10px 15px',
+                      backgroundColor: '#6c757d',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    🔄 New Assessment
+                  </button>
+                </div>
               </div>
             )}
           </div>
