@@ -14,13 +14,16 @@ app = FastAPI()
 
 origins = [
     "http://localhost:3000",  # React app default port
+    "https://basketball-coach.vercel.app",  # Your specific Vercel deployment
+    "https://alexturvy.com",  # Your custom domain
+    "*"  # Allow all origins for debugging
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=["*"],  # Allow all origins for now
+    allow_credentials=False,  # Set to False when using wildcard
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
