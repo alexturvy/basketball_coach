@@ -26,9 +26,18 @@ function App() {
   const [currentDrill, setCurrentDrill] = useState<string | null>(null);
   const [initialAssessment, setInitialAssessment] = useState<CoachingResponse | null>(null);
   const [drillFeedback, setDrillFeedback] = useState<CoachingResponse | null>(null);
-  const [recommendedDrills, setRecommendedDrills] = useState<string[]>([]);
   const [cameraReady, setCameraReady] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Progressive assessment state
+  const [assessmentClips, setAssessmentClips] = useState<number>(0);
+  const [cumulativeFeedback, setCumulativeFeedback] = useState<string[]>([]);
+  const [allTips, setAllTips] = useState<string[]>([]);
+  const [skillAreas, setSkillAreas] = useState<Set<string>>(new Set());
+  const [baselineComplete, setBaselineComplete] = useState<boolean>(false);
+  const [consolidatedAssessment, setConsolidatedAssessment] = useState<CoachingResponse | null>(null);
+  
+  const MAX_ASSESSMENT_CLIPS = 4; // Collect 4 clips for baseline assessment
   
   const prevFrameData = useRef<Uint8ClampedArray | null>(null);
   const lastAnalysisTime = useRef<number>(0);
@@ -137,26 +146,41 @@ function App() {
       console.log('Analysis response:', data);
       
       if (phase === 'initial' || phase === 'assessing') {
-        // Initial assessment phase
-        setInitialAssessment(data);
-        setPhase('results');
-        setFeedback("Analysis complete! Here's what I noticed...");
+        // Progressive assessment phase - accumulate feedback
+        const newClipCount = assessmentClips + 1;
+        setAssessmentClips(newClipCount);
         
-        // Set recommended drills based on assessment
-        const drills = [];
-        if (data.drillSuggestion) drills.push(data.drillSuggestion);
+        // Add new feedback to cumulative collection
+        const newFeedback = [...cumulativeFeedback, data.feedback];
+        setCumulativeFeedback(newFeedback);
         
-        // Add skill-appropriate drills based on feedback content
-        const feedbackLower = data.feedback.toLowerCase();
-        if (feedbackLower.includes('beginner') || feedbackLower.includes('basic')) {
-          drills.push('Basic Stationary Dribble', 'Righty-Lefty Drill');
-        } else if (feedbackLower.includes('intermediate')) {
-          drills.push('Head Up Dribbling', 'Dribbling Around Cones');
-        } else if (feedbackLower.includes('advanced')) {
-          drills.push('One on One Dribbling', 'Sharks & Minnows');
+        // Accumulate tips
+        if (data.tips) {
+          const newTips = [...allTips, ...data.tips];
+          setAllTips(newTips);
         }
         
-        setRecommendedDrills(Array.from(new Set(drills))); // Remove duplicates
+        // Extract and categorize skill areas
+        const newSkillAreas = new Set(skillAreas);
+        const feedbackLower = data.feedback.toLowerCase();
+        if (feedbackLower.includes('control')) newSkillAreas.add('Ball Control');
+        if (feedbackLower.includes('rhythm') || feedbackLower.includes('timing')) newSkillAreas.add('Rhythm & Timing');
+        if (feedbackLower.includes('posture') || feedbackLower.includes('stance')) newSkillAreas.add('Body Position');
+        if (feedbackLower.includes('height') || feedbackLower.includes('bounce')) newSkillAreas.add('Ball Height');
+        if (feedbackLower.includes('hand') || feedbackLower.includes('fingertip')) newSkillAreas.add('Hand Technique');
+        setSkillAreas(newSkillAreas);
+        
+        if (newClipCount >= MAX_ASSESSMENT_CLIPS) {
+          // Complete baseline assessment - consolidate all feedback
+          setBaselineComplete(true);
+          const consolidatedFeedback = consolidateFeedback(newFeedback, allTips, newSkillAreas);
+          setConsolidatedAssessment(consolidatedFeedback);
+          setPhase('results');
+          setFeedback(`Baseline assessment complete! Analyzed ${newClipCount} clips.`);
+        } else {
+          // Continue assessment
+          setFeedback(`Clip ${newClipCount}/${MAX_ASSESSMENT_CLIPS} analyzed. Keep dribbling for more assessment data...`);
+        }
       } else if (phase === 'drilling') {
         // Drill-specific feedback
         setDrillFeedback(data);
@@ -281,12 +305,65 @@ function App() {
     setFeedback("Drill stopped. Choose another drill or restart assessment.");
   };
 
+  const consolidateFeedback = (feedbackArray: string[], tips: string[], skills: Set<string>): CoachingResponse => {
+    // Consolidate multiple feedback pieces into comprehensive assessment
+    const allFeedback = feedbackArray.join(' ');
+    
+    // Extract common themes and patterns
+    const themes = [];
+    if (allFeedback.toLowerCase().includes('control')) themes.push('needs improved ball control');
+    if (allFeedback.toLowerCase().includes('rhythm')) themes.push('should focus on consistent rhythm');
+    if (allFeedback.toLowerCase().includes('posture')) themes.push('requires better body positioning');
+    if (allFeedback.toLowerCase().includes('height')) themes.push('needs to work on dribble height consistency');
+    
+    // Determine skill level from patterns
+    let skillLevel = 'intermediate';
+    const beginnerTerms = ['basic', 'fundamental', 'beginner', 'learning'];
+    const advancedTerms = ['advanced', 'complex', 'sophisticated', 'excellent'];
+    
+    if (beginnerTerms.some(term => allFeedback.toLowerCase().includes(term))) {
+      skillLevel = 'beginner';
+    } else if (advancedTerms.some(term => allFeedback.toLowerCase().includes(term))) {
+      skillLevel = 'advanced';
+    }
+    
+    // Create consolidated feedback
+    const consolidatedText = `Based on ${feedbackArray.length} clips, I've identified your key areas: ${Array.from(skills).join(', ')}. ${themes.length > 0 ? 'Focus areas: ' + themes.join(', ') + '.' : ''}`;
+    
+    // Deduplicate tips
+    const uniqueTips = Array.from(new Set(tips));
+    
+    // Suggest appropriate drill based on skill level and identified areas
+    let drillSuggestion = 'Basic Stationary Dribble';
+    if (skillLevel === 'beginner') {
+      if (skills.has('Ball Control')) drillSuggestion = 'Basic Stationary Dribble';
+      else if (skills.has('Hand Technique')) drillSuggestion = 'Righty-Lefty Drill';
+    } else if (skillLevel === 'intermediate') {
+      if (skills.has('Body Position')) drillSuggestion = 'Head Up Dribbling';
+      else drillSuggestion = 'Dribbling Around Cones';
+    } else {
+      drillSuggestion = 'One on One Dribbling';
+    }
+    
+    return {
+      feedback: consolidatedText,
+      technique: Array.from(skills)[0] || 'Ball Control',
+      tips: uniqueTips.slice(0, 5), // Top 5 tips
+      drillSuggestion
+    };
+  };
+
   const restartAssessment = () => {
     setPhase('initial');
     setCurrentDrill(null);
     setInitialAssessment(null);
     setDrillFeedback(null);
-    setRecommendedDrills([]);
+    setAssessmentClips(0);
+    setCumulativeFeedback([]);
+    setAllTips([]);
+    setSkillAreas(new Set());
+    setBaselineComplete(false);
+    setConsolidatedAssessment(null);
     setFeedback("Basketball Dribbling Coach - Start dribbling to begin your assessment!");
   };
 
@@ -395,23 +472,57 @@ function App() {
             {/* Assessing Phase */}
             {phase === 'assessing' && (
               <div>
-                <h3>Analyzing Your Technique...</h3>
+                <h3>Building Your Assessment...</h3>
                 <div style={{ 
                   padding: '15px', 
                   backgroundColor: '#fff3cd', 
                   borderRadius: '8px',
                   color: '#333'
                 }}>
-                  <p>🔍 I'm watching your dribbling form, rhythm, and control...</p>
-                  <p>Keep dribbling naturally - this will only take a moment!</p>
+                  <p>🔍 Collecting clip {assessmentClips + 1} of {MAX_ASSESSMENT_CLIPS}</p>
+                  <p>I'm analyzing your dribbling patterns across multiple sequences to build a comprehensive evaluation.</p>
+                  <p>Keep dribbling naturally!</p>
+                  
+                  {assessmentClips > 0 && (
+                    <div style={{ marginTop: '10px' }}>
+                      <strong>Progress:</strong>
+                      <div style={{ 
+                        width: '100%', 
+                        backgroundColor: '#e0e0e0', 
+                        borderRadius: '10px', 
+                        marginTop: '5px' 
+                      }}>
+                        <div style={{ 
+                          width: `${(assessmentClips / MAX_ASSESSMENT_CLIPS) * 100}%`, 
+                          backgroundColor: '#28a745', 
+                          height: '8px', 
+                          borderRadius: '10px' 
+                        }}></div>
+                      </div>
+                      <small>{assessmentClips}/{MAX_ASSESSMENT_CLIPS} clips collected</small>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Results Phase */}
-            {phase === 'results' && initialAssessment && (
+            {phase === 'results' && (baselineComplete ? consolidatedAssessment : initialAssessment) && (
               <div>
-                <h3>📊 Assessment Results</h3>
+                <h3>📊 {baselineComplete ? 'Comprehensive Assessment' : 'Assessment Results'}</h3>
+                
+                {baselineComplete && (
+                  <div style={{ 
+                    padding: '15px', 
+                    backgroundColor: '#e8f4fd', 
+                    borderRadius: '8px',
+                    color: '#333',
+                    marginBottom: '15px'
+                  }}>
+                    <p><strong>✅ Baseline Complete!</strong> Analyzed {assessmentClips} video clips</p>
+                    <p><strong>Skill Areas Identified:</strong> {Array.from(skillAreas).join(', ')}</p>
+                  </div>
+                )}
                 
                 <div style={{ 
                   padding: '15px', 
@@ -421,33 +532,36 @@ function App() {
                   marginBottom: '15px'
                 }}>
                   <h4>What I Noticed:</h4>
-                  <p>{initialAssessment.feedback}</p>
+                  <p>{(baselineComplete ? consolidatedAssessment : initialAssessment)?.feedback}</p>
                   
-                  {initialAssessment.technique && (
-                    <p><strong>Key Focus Area:</strong> {initialAssessment.technique}</p>
+                  {(baselineComplete ? consolidatedAssessment : initialAssessment)?.technique && (
+                    <p><strong>Key Focus Area:</strong> {(baselineComplete ? consolidatedAssessment : initialAssessment)?.technique}</p>
                   )}
                   
-                  {initialAssessment.tips && initialAssessment.tips.length > 0 && (
-                    <div>
-                      <strong>Quick Tips:</strong>
-                      <ul>
-                        {initialAssessment.tips.map((tip, index) => (
-                          <li key={index}>{tip}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  {(() => {
+                    const currentAssessment = baselineComplete ? consolidatedAssessment : initialAssessment;
+                    return currentAssessment?.tips && currentAssessment.tips.length > 0 && (
+                      <div>
+                        <strong>Improvement Tips:</strong>
+                        <ul>
+                          {currentAssessment.tips.map((tip, index) => (
+                            <li key={index}>{tip}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <h4>Recommended Drills:</h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {recommendedDrills.map((drill, index) => (
+                  {/* Show drill suggestion from assessment */}
+                  {(baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion && (
                     <button 
-                      key={index}
-                      onClick={() => startDrill(drill)} 
+                      onClick={() => startDrill((baselineComplete ? consolidatedAssessment : initialAssessment)!.drillSuggestion!)} 
                       style={{ 
                         padding: '12px 15px',
-                        backgroundColor: '#007bff',
+                        backgroundColor: '#28a745',
                         color: 'white',
                         border: 'none',
                         borderRadius: '5px',
@@ -455,9 +569,45 @@ function App() {
                         fontSize: '14px'
                       }}
                     >
-                      🎯 {drill}
+                      🎯 {(baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion} (Recommended)
                     </button>
-                  ))}
+                  )}
+                  
+                  {/* Additional skill-appropriate drills */}
+                  {(() => {
+                    const drills = [];
+                    const hasControl = skillAreas.has('Ball Control');
+                    const hasRhythm = skillAreas.has('Rhythm & Timing');
+                    const hasPosition = skillAreas.has('Body Position');
+                    
+                    if (hasControl) drills.push('Basic Stationary Dribble', 'Righty-Lefty Drill');
+                    if (hasRhythm) drills.push('Red Light Green Light');
+                    if (hasPosition) drills.push('Head Up Dribbling');
+                    if (skillAreas.size > 2) drills.push('Dribbling Around Cones');
+                    
+                    // Remove the already recommended drill
+                    const recommendedDrill = (baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion;
+                    const filteredDrills = drills.filter(drill => drill !== recommendedDrill);
+                    
+                    return Array.from(new Set(filteredDrills)).slice(0, 3).map((drill, index) => (
+                      <button 
+                        key={index}
+                        onClick={() => startDrill(drill)} 
+                        style={{ 
+                          padding: '12px 15px',
+                          backgroundColor: '#007bff',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '5px',
+                          cursor: 'pointer',
+                          fontSize: '14px'
+                        }}
+                      >
+                        🎯 {drill}
+                      </button>
+                    ));
+                  })()
+                  }
                 </div>
                 
                 <button 
