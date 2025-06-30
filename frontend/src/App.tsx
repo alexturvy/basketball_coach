@@ -88,7 +88,7 @@ function App() {
       formData.append('video', videoBlob, 'sequence.webm');
       formData.append('drill', currentDrill || 'general');
 
-      const response = await fetch('http://localhost:8000/analyze_sequence', {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/analyze_sequence`, {
         method: 'POST',
         body: formData,
       });
