@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import './App.css';
 
 const MOTION_THRESHOLD = 25000; // Lower threshold = more sensitive
-const SEQUENCE_DURATION = 8000; // 8 seconds of video - better for analyzing dribbling patterns
+const SEQUENCE_DURATION = 5000; // 5 seconds of video - smaller files for better processing
 const ANALYSIS_INTERVAL = 12000; // Analyze every 12 seconds to avoid overwhelming API
 
 interface CoachingResponse {
@@ -66,17 +66,20 @@ function App() {
           // Setup MediaRecorder for video sequences with better codec fallbacks
           let mediaRecorderOptions: MediaRecorderOptions = {};
           
-          // Try different codecs in order of preference
+          // Try different codecs in order of preference - prioritize smaller files
           const codecs = [
+            'video/webm;codecs=vp8', // Better compression
             'video/webm;codecs=vp9',
-            'video/webm;codecs=vp8', 
             'video/webm',
             'video/mp4',
             '' // Default
           ];
           
           for (const codec of codecs) {
-            const options = codec ? { mimeType: codec } : {};
+            const options = codec ? { 
+              mimeType: codec,
+              videoBitsPerSecond: 500000 // 500kbps for smaller files
+            } : { videoBitsPerSecond: 500000 };
             if (!codec || MediaRecorder.isTypeSupported(codec)) {
               mediaRecorderOptions = options;
               console.log('Using MediaRecorder codec:', codec || 'default');
