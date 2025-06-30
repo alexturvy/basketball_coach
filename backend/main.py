@@ -306,6 +306,20 @@ async def analyze_sequence(video: UploadFile = File(...), drill: str = Form("gen
         # Upload video to Gemini
         video_file = genai.upload_file(path=temp_file_path)
         
+        # Wait for file to become active (Gemini needs processing time)
+        import time
+        max_wait_time = 30  # Maximum 30 seconds
+        wait_time = 0
+        
+        while video_file.state.name == "PROCESSING" and wait_time < max_wait_time:
+            print(f"Waiting for video processing... ({wait_time}s)")
+            time.sleep(2)
+            video_file = genai.get_file(video_file.name)
+            wait_time += 2
+        
+        if video_file.state.name != "ACTIVE":
+            raise Exception(f"Video file failed to process. State: {video_file.state.name}")
+        
         # Generate content with video
         response = model.generate_content([
             prompt,
