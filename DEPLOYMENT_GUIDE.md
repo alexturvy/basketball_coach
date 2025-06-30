@@ -26,7 +26,7 @@
 4. **Add Environment Variable**
    - In "Environment Variables" section:
    - **Key**: `GOOGLE_API_KEY`
-   - **Value**: `AIzaSyCt5VhOcHjPUThRkPyTsUnymlcy22_lDZU`
+   - **Value**: 
    - Click "Add"
 
 5. **Deploy**
