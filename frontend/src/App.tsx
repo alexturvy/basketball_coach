@@ -214,27 +214,51 @@ function App() {
           prevFrameData.current = currentFrameData;
 
           const currentTime = Date.now();
+          const timeSinceLastAnalysis = currentTime - lastAnalysisTime.current;
+          
+          // Debug recording conditions
+          if (motionDetected && Date.now() % 2000 < 200) {
+            console.log('Recording conditions:', {
+              motionDetected,
+              isRecording,
+              timeSinceLastAnalysis,
+              analysisInterval: ANALYSIS_INTERVAL,
+              phase,
+              mediaRecorderExists: !!mediaRecorderRef.current
+            });
+          }
           
           // Start recording when motion is detected - behavior depends on phase
-          if (motionDetected && !isRecording && (currentTime - lastAnalysisTime.current > ANALYSIS_INTERVAL)) {
+          if (motionDetected && !isRecording && (timeSinceLastAnalysis > ANALYSIS_INTERVAL) && mediaRecorderRef.current) {
+            console.log('🔴 Starting recording...');
             setIsRecording(true);
-            mediaRecorderRef.current.start();
             
-            if (phase === 'initial') {
-              setPhase('assessing');
-              setFeedback("Analyzing your dribbling technique...");
-            } else if (phase === 'drilling') {
-              setFeedback(`Recording ${currentDrill} performance...`);
-            }
-            
-            // Stop recording after SEQUENCE_DURATION
-            setTimeout(() => {
-              if (mediaRecorderRef.current && isRecording) {
-                mediaRecorderRef.current.stop();
+            try {
+              mediaRecorderRef.current.start();
+              console.log('MediaRecorder.start() called successfully');
+              
+              if (phase === 'initial') {
+                setPhase('assessing');
+                setFeedback("Analyzing your dribbling technique...");
+              } else if (phase === 'drilling') {
+                setFeedback(`Recording ${currentDrill} performance...`);
+              }
+              
+              // Stop recording after SEQUENCE_DURATION
+              setTimeout(() => {
+                console.log('⏹️ Stopping recording after timeout...');
+                if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+                  mediaRecorderRef.current.stop();
+                  console.log('MediaRecorder.stop() called');
+                }
                 setIsRecording(false);
                 lastAnalysisTime.current = currentTime;
-              }
-            }, SEQUENCE_DURATION);
+              }, SEQUENCE_DURATION);
+              
+            } catch (recordError) {
+              console.error('Failed to start recording:', recordError);
+              setIsRecording(false);
+            }
           }
         }
       }
