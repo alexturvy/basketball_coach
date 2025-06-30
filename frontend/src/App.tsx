@@ -141,7 +141,8 @@ function App() {
       }
     } catch (error) {
       console.error('Error analyzing video sequence:', error);
-      setFeedback(`Error: Could not analyze video sequence. ${error.message || 'Connection failed.'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Connection failed.';
+      setFeedback(`Error: Could not analyze video sequence. ${errorMessage}`);
       
       // Reset state so user can try again
       setTimeout(() => {
