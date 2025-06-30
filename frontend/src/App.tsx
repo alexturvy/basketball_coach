@@ -90,16 +90,28 @@ function App() {
 
   const analyzeVideoSequence = async (videoBlob: Blob) => {
     try {
+      console.log('Sending video for analysis...', videoBlob.size, 'bytes');
+      console.log('API URL:', process.env.REACT_APP_API_URL || 'http://localhost:8000');
+      
       const formData = new FormData();
       formData.append('video', videoBlob, 'sequence.webm');
       formData.append('drill', currentDrill || 'general');
+
+      setFeedback('Sending video to AI for analysis...');
 
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/analyze_sequence`, {
         method: 'POST',
         body: formData,
       });
 
+      console.log('Response status:', response.status);
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+
       const data = await response.json();
+      console.log('Analysis response:', data);
       
       if (phase === 'initial' || phase === 'assessing') {
         // Initial assessment phase
@@ -129,7 +141,15 @@ function App() {
       }
     } catch (error) {
       console.error('Error analyzing video sequence:', error);
-      setFeedback("Error: Could not analyze video sequence.");
+      setFeedback(`Error: Could not analyze video sequence. ${error.message || 'Connection failed.'}`);
+      
+      // Reset state so user can try again
+      setTimeout(() => {
+        if (phase === 'assessing') {
+          setPhase('initial');
+          setFeedback("Analysis failed. Try again by starting to dribble.");
+        }
+      }, 3000);
     }
   };
 
