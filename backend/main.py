@@ -39,24 +39,26 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Basketball coaching knowledge base with comprehensive dribbling drills from YMCA curriculum
 DRILL_PROMPTS = {
-    "general": """Analyze this basketball dribbling video sequence. Focus on:
-1. Hand position and ball control
-2. Dribbling rhythm and consistency  
-3. Body posture and stance
-4. Ball height and bounce consistency
-5. Overall technique
+    "general": """Analyze this 8-second basketball dribbling video sequence. Focus on:
+1. Hand position and ball control throughout the sequence
+2. Dribbling rhythm, timing, and consistency over multiple bounces
+3. Body posture, balance, and stance stability
+4. Ball height consistency and bounce control patterns
+5. Overall technique progression during the sequence
+6. Any improvements or deterioration in form over time
 
-Provide specific coaching feedback and suggest a drill to improve the most important area that needs work.""",
+Provide specific coaching feedback and suggest a drill to improve the most important area that needs work. Look for patterns across the full sequence, not just individual moments.""",
 
     # BEGINNER DRILLS
-    "Righty-Lefty Drill": """Analyze this right-left hand dribbling drill. Evaluate:
-1. Control when switching from right to left hand
-2. Consistent ball height with both hands
-3. Smooth transition at the switch point
+    "Righty-Lefty Drill": """Analyze this 8-second right-left hand dribbling sequence. Evaluate:
+1. Control when switching from right to left hand multiple times
+2. Consistent ball height with both hands throughout the sequence
+3. Smooth transitions at each switch point
 4. Body balance during hand changes
 5. Keeping head up while switching hands
+6. Improvement in switching speed and confidence over the sequence
 
-Focus on developing equal skill with both hands.""",
+Focus on developing equal skill with both hands and smooth transitions.""",
 
     "Basic Stationary Dribble": """Analyze this basic stationary dribbling practice. Evaluate:
 1. Ball control with fingertips vs palm
@@ -123,14 +125,15 @@ This critical skill separates good dribblers from great ones.""",
 Develops court awareness and ball control.""",
 
     # ADVANCED DRILLS
-    "One on One Dribbling": """Evaluate this defensive pressure drill. Check:
-1. Ball protection under defensive pressure
-2. Use of body to shield the ball
-3. Change of pace to beat defender
-4. Ball control while being pressured
-5. Decision making under pressure
+    "One on One Dribbling": """Evaluate this 8-second defensive pressure sequence. Check:
+1. Ball protection under defensive pressure throughout the sequence
+2. Use of body to shield the ball consistently
+3. Multiple change of pace attempts to beat defender
+4. Ball control maintenance while being pressured
+5. Decision making and adaptability under pressure
+6. Progression of moves and counter-moves during the sequence
 
-This is crucial for game-situation ball handling.""",
+This is crucial for game-situation ball handling. Look for sustained pressure response.""",
 
     "Sharks & Minnows": """Analyze this pressure dribbling game. Assess:
 1. Ball control while avoiding defenders

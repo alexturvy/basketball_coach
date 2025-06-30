@@ -2,8 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import './App.css';
 
 const MOTION_THRESHOLD = 50000;
-const SEQUENCE_DURATION = 3000; // 3 seconds of video
-const ANALYSIS_INTERVAL = 5000; // Analyze every 5 seconds
+const SEQUENCE_DURATION = 8000; // 8 seconds of video - better for analyzing dribbling patterns
+const ANALYSIS_INTERVAL = 12000; // Analyze every 12 seconds to avoid overwhelming API
 
 interface CoachingResponse {
   feedback: string;
@@ -41,10 +41,21 @@ function App() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           
-          // Setup MediaRecorder for video sequences
-          const mediaRecorder = new MediaRecorder(stream, {
-            mimeType: 'video/webm;codecs=vp9'
-          });
+          // Wait for video metadata to load
+          videoRef.current.onloadedmetadata = () => {
+            console.log("Video metadata loaded, dimensions:", videoRef.current?.videoWidth, "x", videoRef.current?.videoHeight);
+          };
+          
+          // Setup MediaRecorder for video sequences with fallback codec
+          let mediaRecorderOptions = { mimeType: 'video/webm;codecs=vp9' };
+          if (!MediaRecorder.isTypeSupported(mediaRecorderOptions.mimeType)) {
+            mediaRecorderOptions = { mimeType: 'video/webm' };
+            if (!MediaRecorder.isTypeSupported(mediaRecorderOptions.mimeType)) {
+              mediaRecorderOptions = {}; // Use default
+            }
+          }
+          
+          const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
           mediaRecorderRef.current = mediaRecorder;
           
           mediaRecorder.ondataavailable = (event) => {
@@ -99,7 +110,8 @@ function App() {
         const canvas = canvasRef.current;
         const context = canvas.getContext('2d');
 
-        if (context) {
+        // Check if video has valid dimensions before proceeding
+        if (context && video.videoWidth > 0 && video.videoHeight > 0) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
           context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
