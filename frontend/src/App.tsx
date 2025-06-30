@@ -75,17 +75,19 @@ function App() {
             }
           }
           
+          let mediaRecorder: MediaRecorder;
+          
           try {
-            const mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
-            mediaRecorderRef.current = mediaRecorder;
+            mediaRecorder = new MediaRecorder(stream, mediaRecorderOptions);
             console.log('MediaRecorder created successfully');
           } catch (codecError) {
             console.error('MediaRecorder creation failed, trying default:', codecError);
             // Fallback to default (no codec specified)
-            const mediaRecorder = new MediaRecorder(stream);
-            mediaRecorderRef.current = mediaRecorder;
+            mediaRecorder = new MediaRecorder(stream);
             console.log('MediaRecorder created with default codec');
           }
+          
+          mediaRecorderRef.current = mediaRecorder;
           
           mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
