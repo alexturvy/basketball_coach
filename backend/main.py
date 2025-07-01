@@ -8,6 +8,16 @@ from dotenv import load_dotenv
 import tempfile
 from typing import List, Optional, Dict, Any
 
+from .utils.session import (
+    AnalysisSession,
+    ProgressiveFeedback,
+    CoachingResponse,
+    analysis_sessions,
+    SATURATION_THRESHOLD,
+)
+from .utils.parsing import extract_key_areas, extract_tips
+from .utils.analysis import consolidate_session_feedback
+
 load_dotenv()
 
 app = FastAPI()
@@ -34,52 +44,8 @@ app.add_middleware(
 class ImageData(BaseModel):
     image: str
 
-class CoachingResponse(BaseModel):
-    feedback: str
-    drillSuggestion: Optional[str] = None
-    technique: Optional[str] = None
-    tips: Optional[List[str]] = None
-
-class ProgressiveFeedback(BaseModel):
-    clipNumber: int
-    feedback: str
-    keyAreas: List[str]
-    tips: List[str]
-    timestamp: str
-
-class DrillExample(BaseModel):
-    title: str
-    url: str
-    duration: str
-    focus: str
-
-class DrillInfo(BaseModel):
-    category: str
-    description: str
-    youtube_examples: List[DrillExample]
-    key_points: List[str]
-    common_mistakes: List[str]
-
-class AnalysisSession(BaseModel):
-    sessionId: str
-    feedbackList: List[ProgressiveFeedback] = []
-    keyThemes: List[str] = []
-    skillLevel: str = "intermediate"
-    saturated: bool = False
-    consolidatedFeedback: Optional[CoachingResponse] = None
-    currentDrill: Optional[str] = None
-    drillPhase: str = "watching"  # watching, practicing, completed
-
-# Configure Gemini API
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-flash')
-
-# In-memory storage for analysis sessions (use Redis in production)
-analysis_sessions: Dict[str, AnalysisSession] = {}
-
-# Configuration for progressive analysis
-MAX_FEEDBACK_ROUNDS = 6
-SATURATION_THRESHOLD = 5
 
 # Research-based basketball dribbling expertise (2024)
 BASKETBALL_COACHING_INSIGHTS = {
@@ -848,96 +814,6 @@ async def progressive_analysis(video: UploadFile = File(...), sessionId: str = F
             "clipNumber": len(analysis_sessions.get(sessionId, AnalysisSession(sessionId=sessionId)).feedbackList) + 1
         }
 
-def extract_key_areas(feedback_text: str) -> List[str]:
-    """Extract key skill areas from feedback"""
-    areas = []
-    text_lower = feedback_text.lower()
-    
-    if "control" in text_lower or "grip" in text_lower:
-        areas.append("Ball Control")
-    if "rhythm" in text_lower or "timing" in text_lower or "consistency" in text_lower:
-        areas.append("Rhythm & Timing")
-    if "posture" in text_lower or "stance" in text_lower or "position" in text_lower:
-        areas.append("Body Position")
-    if "height" in text_lower or "bounce" in text_lower:
-        areas.append("Dribble Height")
-    if "hand" in text_lower or "finger" in text_lower:
-        areas.append("Hand Technique")
-    if "head" in text_lower or "eyes" in text_lower or "awareness" in text_lower:
-        areas.append("Court Awareness")
-    
-    return areas
-
-def extract_tips(feedback_text: str) -> List[str]:
-    """Extract actionable tips from feedback"""
-    lines = feedback_text.split('\n')
-    tips = []
-    
-    for line in lines:
-        line = line.strip()
-        if any(starter in line.lower() for starter in ['tip:', 'try', 'focus on', 'practice', 'work on', 'remember']):
-            clean_tip = line.lstrip('•-*123456789. ').strip()
-            if clean_tip and len(clean_tip) > 10:  # Filter out very short tips
-                tips.append(clean_tip)
-    
-    # If no structured tips found, extract sentences with action words
-    if not tips:
-        sentences = feedback_text.split('.')
-        for sentence in sentences:
-            if any(word in sentence.lower() for word in ['should', 'try', 'focus', 'keep', 'maintain', 'improve']):
-                clean_sentence = sentence.strip()
-                if len(clean_sentence) > 15:
-                    tips.append(clean_sentence)
-    
-    return tips[:3]  # Return top 3 tips
-
-def consolidate_session_feedback(session: AnalysisSession) -> CoachingResponse:
-    """Consolidate all feedback from a session into final assessment"""
-    
-    all_feedback = " ".join([f.feedback for f in session.feedbackList])
-    all_areas = list(set([area for f in session.feedbackList for area in f.keyAreas]))
-    all_tips = list(set([tip for f in session.feedbackList for tip in f.tips]))
-    
-    # Create consolidation prompt
-    consolidation_prompt = f"""Based on {len(session.feedbackList)} basketball dribbling video clips, provide a comprehensive assessment.
-    
-    Accumulated feedback: {all_feedback}
-    
-    Key areas identified: {', '.join(all_areas)}
-    
-    Please consolidate this into:
-    1. A comprehensive assessment (2-3 sentences) highlighting the main patterns and themes
-    2. The top 3 most important areas to focus on
-    3. Specific drill recommendation based on the identified needs
-    4. Primary technique focus area
-    
-    Format your response clearly with sections."""
-    
-    try:
-        consolidation_response = model.generate_content([consolidation_prompt])
-        consolidated_text = consolidation_response.text
-        
-        # Parse the consolidated response
-        consolidated_feedback = parse_coaching_response(consolidated_text, "consolidation")
-        
-        # Enhance with session data
-        if not consolidated_feedback.tips:
-            consolidated_feedback.tips = all_tips[:3]
-        
-        if not consolidated_feedback.technique and all_areas:
-            consolidated_feedback.technique = all_areas[0]
-            
-        return consolidated_feedback
-        
-    except Exception as e:
-        print(f"Consolidation failed: {e}")
-        # Fallback consolidation
-        return CoachingResponse(
-            feedback=f"Based on {len(session.feedbackList)} clips, main focus areas are: {', '.join(all_areas[:3])}",
-            technique=all_areas[0] if all_areas else "Ball Control",
-            tips=all_tips[:3],
-            drillSuggestion="Basic Stationary Dribble"
-        )
 
 @app.get("/session/{sessionId}")
 def get_session(sessionId: str):
