@@ -186,6 +186,16 @@ function App() {
     setRecordingProgress(0);
     setIsAnalysisActive(true);
     setFeedback("Recording...");
+
+    // Start the MediaRecorder and set a timer to stop after 10 seconds
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.start();
+      setTimeout(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+          mediaRecorderRef.current.stop();
+        }
+      }, 10000); // 10 seconds
+    }
   };
 
   const stopRecording = () => {
