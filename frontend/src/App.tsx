@@ -118,8 +118,10 @@ function App() {
           };
           
           mediaRecorder.onstop = () => {
+            console.log('[mediaRecorder.onstop] Called.');
             const videoBlob = new Blob(videoChunksRef.current, { type: 'video/webm' });
             videoChunksRef.current = [];
+            console.log('[mediaRecorder.onstop] Created videoBlob of size:', videoBlob.size);
             analyzeVideoSequence(videoBlob);
           };
         }
@@ -182,19 +184,29 @@ function App() {
   };
 
   const nextClip = () => {
+    console.log('[nextClip] Called. isRecording:', isRecording, 'isAnalysisActive:', isAnalysisActive, 'assessmentClips:', assessmentClips);
     setIsRecording(true);
     setRecordingProgress(0);
     setIsAnalysisActive(true);
     setFeedback("Recording...");
 
-    // Start the MediaRecorder and set a timer to stop after 10 seconds
     if (mediaRecorderRef.current) {
-      mediaRecorderRef.current.start();
-      setTimeout(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
-          mediaRecorderRef.current.stop();
-        }
-      }, 10000); // 10 seconds
+      try {
+        console.log('[nextClip] Starting MediaRecorder. State:', mediaRecorderRef.current.state);
+        mediaRecorderRef.current.start();
+        console.log('[nextClip] MediaRecorder started. State:', mediaRecorderRef.current.state);
+        setTimeout(() => {
+          console.log('[nextClip] setTimeout fired. MediaRecorder state:', mediaRecorderRef.current?.state);
+          if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+            mediaRecorderRef.current.stop();
+            console.log('[nextClip] MediaRecorder stopped by timer.');
+          }
+        }, 10000);
+      } catch (err) {
+        console.error('[nextClip] Error starting MediaRecorder:', err);
+      }
+    } else {
+      console.warn('[nextClip] mediaRecorderRef.current is null');
     }
   };
 
@@ -205,6 +217,7 @@ function App() {
   };
 
   const analyzeVideoSequence = async (videoBlob: Blob, attempt: number = 1) => {
+    console.log('[analyzeVideoSequence] Called. Blob size:', videoBlob.size, 'Attempt:', attempt);
     try {
       console.log('Sending video for progressive analysis...', videoBlob.size, 'bytes', `(attempt ${attempt})`);
       
@@ -230,14 +243,14 @@ function App() {
         signal: AbortSignal.timeout(60000), // 60 second timeout for 10-second videos
       });
 
-      console.log('Response status:', response.status);
+      console.log('[analyzeVideoSequence] Fetch complete. Response status:', response.status);
       
       if (!response.ok) {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
-      console.log('Progressive analysis response:', data);
+      console.log('[analyzeVideoSequence] Backend response:', data);
       console.log('Backend says clipNumber:', data.clipNumber, 'saturated:', data.saturated, 'feedbackList length:', data.feedbackList?.length);
       
       if (data.error) {
@@ -309,8 +322,9 @@ function App() {
           pauseVideo();
         }
       }
+      console.log('[analyzeVideoSequence] Updated state. assessmentClips:', assessmentClips, 'isRecording:', isRecording, 'isAnalysisActive:', isAnalysisActive);
     } catch (error) {
-      console.error('Error analyzing video sequence:', error);
+      console.error('[analyzeVideoSequence] Error:', error);
       
       // Check if this is a network error and we can retry
       const isNetworkError = error instanceof TypeError || 
