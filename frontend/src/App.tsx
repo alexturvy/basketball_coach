@@ -34,12 +34,9 @@ function App() {
   // Progressive assessment state
   const [assessmentClips, setAssessmentClips] = useState<number>(0);
   const [cumulativeFeedback, setCumulativeFeedback] = useState<string[]>([]);
-  const [allTips, setAllTips] = useState<string[]>([]);
   const [skillAreas, setSkillAreas] = useState<Set<string>>(new Set());
   const [baselineComplete, setBaselineComplete] = useState<boolean>(false);
   const [consolidatedAssessment, setConsolidatedAssessment] = useState<CoachingResponse | null>(null);
-  
-  const MAX_ASSESSMENT_CLIPS = 4; // Collect 4 clips for baseline assessment
   
   const prevFrameData = useRef<Uint8ClampedArray | null>(null);
   const lastAnalysisTime = useRef<number>(0);
@@ -125,7 +122,33 @@ function App() {
     setupCamera();
   }, []);
 
-  const startAnalysis = () => {
+  const startAnalysis = async () => {
+    // Clear any existing session to start fresh
+    const oldSessionId = localStorage.getItem('basketballCoachSessionId');
+    if (oldSessionId) {
+      try {
+        await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/session/${oldSessionId}`, {
+          method: 'DELETE',
+        });
+        console.log('Cleared old session:', oldSessionId);
+      } catch (error) {
+        console.warn('Failed to clear old session:', error);
+      }
+      localStorage.removeItem('basketballCoachSessionId');
+    }
+    
+    // Generate a new session ID for fresh analysis
+    const newSessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    localStorage.setItem('basketballCoachSessionId', newSessionId);
+    console.log('Starting new analysis with session ID:', newSessionId);
+    
+    // Reset local state to ensure fresh start
+    setAssessmentClips(0);
+    setCumulativeFeedback([]);
+    setSkillAreas(new Set());
+    setBaselineComplete(false);
+    setConsolidatedAssessment(null);
+    
     setIsAnalysisActive(true);
     setPhase('assessing');
     setFeedback("Recording...");
@@ -161,6 +184,9 @@ function App() {
       if (!sessionId) {
         sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         localStorage.setItem('basketballCoachSessionId', sessionId);
+        console.log('Generated new session ID:', sessionId);
+      } else {
+        console.log('Using existing session ID:', sessionId);
       }
       
       const formData = new FormData();
@@ -182,6 +208,7 @@ function App() {
 
       const data = await response.json();
       console.log('Progressive analysis response:', data);
+      console.log('Backend says clipNumber:', data.clipNumber, 'saturated:', data.saturated, 'feedbackList length:', data.feedbackList?.length);
       
       if (data.error) {
         throw new Error(data.error);
@@ -191,6 +218,7 @@ function App() {
         // Update feedback list with new clip
         if (data.feedbackList) {
           setCumulativeFeedback(data.feedbackList.map((f: any) => f.feedback));
+          console.log('Updated feedbackList:', data.feedbackList.length, 'items');
           
           // Update skill areas from key themes
           if (data.keyThemes) {
@@ -204,6 +232,7 @@ function App() {
           setConsolidatedAssessment(data.consolidatedFeedback);
           setPhase('results');
           setFeedback("Assessment Complete");
+          setAssessmentClips(data.clipNumber); // Use actual clip number from backend
           setIsAnalysisActive(false);
           pauseVideo();
         } else {
@@ -245,6 +274,7 @@ function App() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const interval = setInterval(() => {
       if (videoRef.current && canvasRef.current && mediaRecorderRef.current) {
@@ -344,6 +374,7 @@ function App() {
     setFeedback("Drill stopped. Choose another drill or restart assessment.");
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const consolidateFeedback = (feedbackArray: string[], tips: string[], skills: Set<string>): CoachingResponse => {
     // Consolidate multiple feedback pieces into comprehensive assessment
     const allFeedback = feedbackArray.join(' ');
@@ -413,7 +444,6 @@ function App() {
     setDrillFeedback(null);
     setAssessmentClips(0);
     setCumulativeFeedback([]);
-    setAllTips([]);
     setSkillAreas(new Set());
     setBaselineComplete(false);
     setConsolidatedAssessment(null);
