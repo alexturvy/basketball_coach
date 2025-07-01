@@ -4,6 +4,7 @@ import './App.css';
 const MOTION_THRESHOLD = 25000; // Lower threshold = more sensitive
 const SEQUENCE_DURATION = 5000; // 5 seconds of video - smaller files for better processing
 const ANALYSIS_INTERVAL = 12000; // Analyze every 12 seconds to avoid overwhelming API
+const MAX_RETRIES = 3; // Maximum retry attempts for failed requests
 
 interface CoachingResponse {
   feedback: string;
@@ -30,6 +31,9 @@ function App() {
   const [cameraReady, setCameraReady] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [videoPaused, setVideoPaused] = useState<boolean>(false);
+  const [recordingProgress, setRecordingProgress] = useState<number>(0);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [retryCount, setRetryCount] = useState<number>(0);
   
   // Progressive assessment state
   const [assessmentClips, setAssessmentClips] = useState<number>(0);
@@ -148,6 +152,8 @@ function App() {
     setSkillAreas(new Set());
     setBaselineComplete(false);
     setConsolidatedAssessment(null);
+    setRetryCount(0);
+    setRecordingProgress(0);
     
     setIsAnalysisActive(true);
     setPhase('assessing');
@@ -175,9 +181,9 @@ function App() {
     resumeVideo();
   };
 
-  const analyzeVideoSequence = async (videoBlob: Blob) => {
+  const analyzeVideoSequence = async (videoBlob: Blob, attempt: number = 1) => {
     try {
-      console.log('Sending video for progressive analysis...', videoBlob.size, 'bytes');
+      console.log('Sending video for progressive analysis...', videoBlob.size, 'bytes', `(attempt ${attempt})`);
       
       // Generate or use existing session ID
       let sessionId = localStorage.getItem('basketballCoachSessionId');
@@ -193,11 +199,12 @@ function App() {
       formData.append('video', videoBlob, 'sequence.webm');
       formData.append('sessionId', sessionId);
 
-      setFeedback('Analyzing your dribbling technique...');
+      setFeedback(attempt > 1 ? `Retrying analysis (${attempt}/${MAX_RETRIES})...` : 'Analyzing your dribbling technique...');
 
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/progressive_analysis`, {
         method: 'POST',
         body: formData,
+        signal: AbortSignal.timeout(30000), // 30 second timeout
       });
 
       console.log('Response status:', response.status);
@@ -261,16 +268,41 @@ function App() {
       }
     } catch (error) {
       console.error('Error analyzing video sequence:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Connection failed.';
-      setFeedback(`Error: Could not analyze video sequence. ${errorMessage}`);
+      
+      // Check if this is a network error and we can retry
+      const isNetworkError = error instanceof TypeError || 
+                            (error instanceof Error && error.message.includes('Failed to fetch'));
+      
+      if (isNetworkError && attempt < MAX_RETRIES) {
+        console.log(`Network error detected, retrying in 2 seconds... (attempt ${attempt + 1}/${MAX_RETRIES})`);
+        setFeedback(`Connection failed, retrying in 2 seconds... (${attempt}/${MAX_RETRIES})`);
+        
+        setTimeout(() => {
+          analyzeVideoSequence(videoBlob, attempt + 1);
+        }, 2000);
+        return;
+      }
+      
+      // Provide specific error messages
+      let errorMessage = 'Unknown error occurred';
+      if (error instanceof TypeError || (error instanceof Error && error.message.includes('Failed to fetch'))) {
+        errorMessage = 'Unable to connect to analysis service. Please check your internet connection and try again.';
+      } else if (error instanceof Error && error.name === 'AbortError') {
+        errorMessage = 'Analysis timed out. Please try again with better lighting and video quality.';
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setFeedback(`Analysis failed: ${errorMessage}`);
+      setRetryCount(0); // Reset retry count
       
       // Reset state so user can try again
       setTimeout(() => {
         if (phase === 'assessing') {
           setPhase('initial');
-          setFeedback("Analysis failed. Try again by starting to dribble.");
+          setFeedback("Ready to analyze your dribbling. Please ensure good lighting and try again.");
         }
-      }, 3000);
+      }, 4000);
     }
   };
 
@@ -330,21 +362,38 @@ function App() {
           if (motionDetected && !isRecording && isAnalysisActive && (timeSinceLastAnalysis > ANALYSIS_INTERVAL) && mediaRecorderRef.current) {
             console.log('🔴 Starting recording...');
             setIsRecording(true);
+            setRecordingProgress(0);
             
             try {
               mediaRecorderRef.current.start();
               console.log('MediaRecorder.start() called successfully');
               
-              setFeedback("Analyzing...");
+              const startTime = Date.now();
+              
+              // Progress tracking interval
+              const progressInterval = setInterval(() => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(100, (elapsed / SEQUENCE_DURATION) * 100);
+                setRecordingProgress(progress);
+                
+                const remaining = Math.ceil((SEQUENCE_DURATION - elapsed) / 1000);
+                setFeedback(`Recording... ${remaining}s`);
+                
+                if (elapsed >= SEQUENCE_DURATION) {
+                  clearInterval(progressInterval);
+                }
+              }, 100);
               
               // Stop recording after SEQUENCE_DURATION
               setTimeout(() => {
                 console.log('⏹️ Stopping recording after timeout...');
+                clearInterval(progressInterval);
                 if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
                   mediaRecorderRef.current.stop();
                   console.log('MediaRecorder.stop() called');
                 }
                 setIsRecording(false);
+                setRecordingProgress(0);
                 lastAnalysisTime.current = currentTime;
               }, SEQUENCE_DURATION);
               
@@ -487,6 +536,25 @@ function App() {
       <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>{assessmentClips}/5</span>
     </div>
   );
+  
+  // Recording progress component
+  const RecordingProgress = () => {
+    if (!isRecording || recordingProgress === 0) return null;
+    
+    return (
+      <div className="recording-progress">
+        <div className="progress-bar">
+          <div 
+            className="progress-fill recording" 
+            style={{ width: `${recordingProgress}%` }}
+          />
+        </div>
+        <div className="recording-timer">
+          📹 Recording: {Math.ceil((100 - recordingProgress) * 50 / 1000)}s
+        </div>
+      </div>
+    );
+  };
 
   // Error boundary with ESPN styling
   if (error) {
@@ -548,6 +616,8 @@ function App() {
               </div>
               <span>{feedback}</span>
             </div>
+            
+            <RecordingProgress />
           </div>
           
           {/* Coaching Panel */}
@@ -567,6 +637,17 @@ function App() {
                   >
                     🎯 Start Analysis
                   </button>
+                </div>
+                
+                <div className="card" style={{ marginTop: 'var(--spacing-md)' }}>
+                  <h4>📹 Recording Tips</h4>
+                  <ul style={{ fontSize: '0.85rem', lineHeight: '1.4', paddingLeft: 'var(--spacing-md)' }}>
+                    <li>Stand 3-6 feet from camera</li>
+                    <li>Ensure adequate lighting (any lighting works)</li>
+                    <li>Start dribbling to trigger recording</li>
+                    <li>Each clip records for 5 seconds</li>
+                    <li>Analysis works in various conditions</li>
+                  </ul>
                 </div>
               </div>
             )}

@@ -644,6 +644,38 @@ h4 {
   background: var(--espn-blue);
 }
 
+/* Recording Progress */
+.recording-progress {
+  margin-top: var(--spacing-md);
+  background: rgba(26, 26, 26, 0.9);
+  border-radius: 8px;
+  padding: var(--spacing-md);
+  border: 2px solid var(--espn-red);
+  animation: pulse 1.5s infinite;
+}
+
+.recording-progress .progress-bar {
+  height: 8px;
+  background: rgba(74, 74, 74, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: var(--spacing-sm);
+}
+
+.progress-fill.recording {
+  background: linear-gradient(90deg, var(--espn-red), #ff4444);
+  animation: progressShine 1s infinite;
+}
+
+.recording-timer {
+  text-align: center;
+  font-weight: 700;
+  color: var(--espn-red);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* Error States */
 .error-container {
   background: rgba(213, 10, 10, 0.1);

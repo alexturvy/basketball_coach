@@ -72,7 +72,9 @@ DRILL_PROMPTS = {
 5. Overall technique progression during the sequence
 6. Any improvements or deterioration in form over time
 
-Provide specific coaching feedback and suggest a drill to improve the most important area that needs work. Look for patterns across the full sequence, not just individual moments.""",
+IMPORTANT: Analyze the dribbling technique even if lighting, background, or video quality is not perfect. Focus on what you CAN observe about the player's movement and ball handling. Do not reject the video due to lighting or quality issues - instead provide constructive feedback based on what is visible.
+
+Provide specific coaching feedback and suggest a drill to improve the most important area that needs work. Look for patterns across the full sequence, not just individual moments. Be encouraging and focus on technique improvements rather than video quality concerns.""",
 
     # BEGINNER DRILLS
     "Righty-Lefty Drill": """Analyze this 5-second right-left hand dribbling sequence. Evaluate:
@@ -430,19 +432,21 @@ async def progressive_analysis(video: UploadFile = File(...), sessionId: str = F
         # Enhanced prompt for progressive analysis
         progressive_prompt = f"""Analyze this basketball dribbling video clip #{clip_number}. 
         
+        IMPORTANT: Focus on technique analysis even if video quality, lighting, or background conditions are not ideal. Do your best to analyze what you can see of the dribbling motion.
+        
         Focus on these key areas and provide specific, actionable feedback:
-        1. Ball control and hand positioning
+        1. Ball control and hand positioning (even if partially visible)
         2. Dribble height consistency and rhythm
         3. Body posture and athletic stance
         4. Head position and court awareness
         5. Overall technique improvement areas
         
         This is clip #{clip_number} in a progressive assessment. Provide:
-        - Specific feedback on what you observe
+        - Specific feedback on what you observe (focus on technique, not video quality)
         - 2-3 key improvement areas
         - 2-3 actionable tips
         
-        Be concise but specific about technique details."""
+        Be encouraging and constructive. If lighting or quality makes some details hard to see, focus on what IS visible and provide helpful feedback. Avoid rejecting the video due to technical quality issues."""
         
         # Analyze the video clip
         video_size_mb = len(content) / (1024 * 1024)
