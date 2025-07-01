@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 
 class ProgressiveFeedback(BaseModel):
@@ -16,8 +16,8 @@ class CoachingResponse(BaseModel):
 
 class AnalysisSession(BaseModel):
     sessionId: str
-    feedbackList: List[ProgressiveFeedback] = []
-    keyThemes: List[str] = []
+    feedbackList: List[ProgressiveFeedback] = Field(default_factory=list)
+    keyThemes: List[str] = Field(default_factory=list)
     skillLevel: str = "intermediate"
     saturated: bool = False
     consolidatedFeedback: Optional[CoachingResponse] = None
