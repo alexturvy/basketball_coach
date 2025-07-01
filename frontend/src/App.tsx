@@ -643,10 +643,10 @@ function App() {
                   <h4>📹 Recording Tips</h4>
                   <ul style={{ fontSize: '0.85rem', lineHeight: '1.4', paddingLeft: 'var(--spacing-md)' }}>
                     <li>Stand 3-6 feet from camera</li>
-                    <li>Ensure adequate lighting (any lighting works)</li>
-                    <li>Start dribbling to trigger recording</li>
+                    <li>Works in any lighting conditions</li>
+                    <li>Click Start Analysis, then dribble</li>
                     <li>Each clip records for 5 seconds</li>
-                    <li>Analysis works in various conditions</li>
+                    <li>Works with any background/setting</li>
                   </ul>
                 </div>
               </div>
