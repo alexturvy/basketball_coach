@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import './App.css';
 
 const MOTION_THRESHOLD = 25000; // Lower threshold = more sensitive
-const SEQUENCE_DURATION = 5000; // 5 seconds of video - smaller files for better processing
+const SEQUENCE_DURATION = 10000; // 10 seconds of video for better analysis
 const ANALYSIS_INTERVAL = 12000; // Analyze every 12 seconds to avoid overwhelming API
 const MAX_RETRIES = 3; // Maximum retry attempts for failed requests
 
@@ -222,7 +222,7 @@ function App() {
       const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/progressive_analysis`, {
         method: 'POST',
         body: formData,
-        signal: AbortSignal.timeout(30000), // 30 second timeout
+        signal: AbortSignal.timeout(60000), // 60 second timeout for 10-second videos
       });
 
       console.log('Response status:', response.status);
@@ -261,8 +261,8 @@ function App() {
           setIsAnalysisActive(false);
           pauseVideo();
         } else {
-          // Continue assessment - pause after feedback
-          setFeedback("Clip Analyzed");
+          // Continue assessment - pause after feedback and wait for manual next
+          setFeedback(`Clip ${data.clipNumber} analyzed - Click Next Clip to continue`);
           setAssessmentClips(data.clipNumber);
           setIsAnalysisActive(false);
           pauseVideo();
@@ -550,15 +550,15 @@ function App() {
 
   // Clipboard component for feedback display
   const ClipboardFeedback = () => {
-    if (cumulativeFeedback.length === 0) return null;
+    if (!cumulativeFeedback || cumulativeFeedback.length === 0) return null;
     
     return (
       <div className="clipboard">
-        <div className="clipboard-header">Analysis Notes</div>
+        <div className="clipboard-header">Analysis Notes ({cumulativeFeedback.length}/5)</div>
         {cumulativeFeedback.map((feedback, index) => (
-          <div key={index} className="clipboard-item">
+          <div key={`clip-${index}-${Date.now()}`} className="clipboard-item">
             <div className="clipboard-item-header">Clip {index + 1}</div>
-            <div className="clipboard-item-content">{feedback}</div>
+            <div className="clipboard-item-content">{feedback || 'Processing...'}</div>
           </div>
         ))}
       </div>
@@ -583,21 +583,14 @@ function App() {
     </div>
   );
   
-  // Recording progress component
-  const RecordingProgress = () => {
-    if (!isRecording || recordingProgress === 0) return null;
+  // Simple recording countdown (removed duplicate progress component)
+  const RecordingCountdown = () => {
+    if (!isRecording) return null;
     
+    const remaining = Math.ceil((100 - recordingProgress) * 100 / 1000);
     return (
-      <div className="recording-progress">
-        <div className="progress-bar">
-          <div 
-            className="progress-fill recording" 
-            style={{ width: `${recordingProgress}%` }}
-          />
-        </div>
-        <div className="recording-timer">
-          📹 Recording: {Math.ceil((100 - recordingProgress) * 50 / 1000)}s
-        </div>
+      <div className="recording-countdown">
+        🔴 Recording: {remaining}s
       </div>
     );
   };
@@ -663,7 +656,7 @@ function App() {
               <span>{feedback}</span>
             </div>
             
-            <RecordingProgress />
+            <RecordingCountdown />
           </div>
           
           {/* Coaching Panel */}
@@ -751,30 +744,42 @@ function App() {
                   {(baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion && (
                     <button 
                       className="btn primary"
-                      onClick={() => startDrill((baselineComplete ? consolidatedAssessment : initialAssessment)!.drillSuggestion!)} 
+                      onClick={() => {
+                        const suggDrill = (baselineComplete ? consolidatedAssessment : initialAssessment)!.drillSuggestion!;
+                        console.log('Starting recommended drill:', suggDrill);
+                        startDrill(suggDrill);
+                      }} 
                     >
                       🎯 {(baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion}
                     </button>
                   )}
                   
                   {(() => {
+                    // Available drills that exist in our database
+                    const availableDrills = ['Basic Stationary Dribble', 'Righty-Lefty Drill', 'Head Up Dribbling', 'Crossover Drill'];
                     const drills = [];
                     const hasControl = skillAreas.has('Ball Control');
                     const hasRhythm = skillAreas.has('Rhythm & Timing');
                     const hasPosition = skillAreas.has('Body Position');
                     
                     if (hasControl) drills.push('Basic Stationary Dribble');
-                    if (hasRhythm) drills.push('Red Light Green Light');
+                    if (hasRhythm) drills.push('Righty-Lefty Drill');
                     if (hasPosition) drills.push('Head Up Dribbling');
                     
+                    // Add crossover for intermediate skills
+                    if (skillAreas.size >= 2) drills.push('Crossover Drill');
+                    
                     const recommendedDrill = (baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion;
-                    const filteredDrills = drills.filter(drill => drill !== recommendedDrill);
+                    const filteredDrills = drills.filter(drill => drill !== recommendedDrill && availableDrills.includes(drill));
                     
                     return Array.from(new Set(filteredDrills)).slice(0, 2).map((drill, index) => (
                       <button 
-                        key={index}
+                        key={`drill-${index}-${drill}`}
                         className="btn"
-                        onClick={() => startDrill(drill)} 
+                        onClick={() => {
+                          console.log('Starting drill:', drill);
+                          startDrill(drill);
+                        }} 
                       >
                         🏀 {drill}
                       </button>

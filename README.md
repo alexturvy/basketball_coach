@@ -95,7 +95,7 @@ An intelligent basketball coaching application that uses computer vision and AI 
 4. **Start dribbling** to trigger automatic recording
 
 ### The Analysis Process
-1. **Recording Phase**: Each clip records for 5 seconds with visual countdown
+1. **Recording Phase**: Each clip records for 10 seconds with visual countdown
 2. **Processing Phase**: AI analyzes technique and provides feedback
 3. **Review Phase**: Check clipboard-style feedback after each clip
 4. **Progress Tracking**: Watch your progress through 5 total clips
@@ -107,25 +107,30 @@ An intelligent basketball coaching application that uses computer vision and AI 
 - **Actionable Tips**: Specific suggestions for better technique
 - **Drill Suggestions**: Personalized practice recommendations
 
-## 🏀 Available Drills
+## 🏀 Enhanced Drill System with YouTube Examples
 
 ### Beginner Level
-- **Basic Stationary Dribble**: Master fundamental ball control
-- **Righty-Lefty Drill**: Develop ambidextrous skills
+- **Basic Stationary Dribble**: Master fingertip control and athletic stance
+- **Righty-Lefty Drill**: Develop equal skill with both hands
 - **Red Light Green Light**: Practice stop-and-go control
 - **Space Man Drill**: Build court awareness
 
 ### Intermediate Level
+- **Head Up Dribbling**: Develop court vision while maintaining control
+- **Crossover Drill**: Master NBA-level crossover technique (low, tight, quick)
 - **Dribbling Around Cones**: Improve agility and direction changes
 - **Follow the Leader**: Enhance adaptability and coordination
-- **Head Up Dribbling**: Develop visual awareness while dribbling
-- **Engine & Caboose**: Practice spacing and coordination
 
 ### Advanced Level
-- **One on One Dribbling**: Handle defensive pressure
+- **One on One Dribbling**: Handle defensive pressure with ball protection
 - **Sharks & Minnows**: Master pressure situations
 - **Change Direction Drill**: Perfect explosive directional changes
 - **Dribble Around Defenders**: Navigate tight spaces
+
+### New Drill Flow (Watch → Practice → Feedback)
+1. **Watch Phase**: View YouTube examples with key points and common mistakes
+2. **Practice Phase**: AI-guided practice with real-time feedback
+3. **Feedback Phase**: Targeted improvement suggestions based on elite coaching
 
 ## 🛠️ Technical Architecture
 
@@ -175,14 +180,14 @@ REACT_APP_API_URL=http://localhost:8000  # Custom backend URL
 ```
 
 ### Video Settings
-- **Recording Duration**: 5 seconds per clip
+- **Recording Duration**: 10 seconds per clip
 - **Analysis Interval**: 12 seconds between clips
 - **Motion Threshold**: Configurable sensitivity
 - **Video Format**: WebM with VP8 codec
 
 ### AI Configuration
 - **Model**: Google Gemini 1.5 Flash
-- **Timeout**: 30 seconds per request
+- **Timeout**: 60 seconds per request
 - **Retry Logic**: Up to 3 attempts for network failures
 - **Saturation Threshold**: 5 clips for complete assessment
 
