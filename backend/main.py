@@ -64,17 +64,25 @@ SATURATION_THRESHOLD = 5
 
 # Basketball coaching knowledge base with comprehensive dribbling drills from YMCA curriculum
 DRILL_PROMPTS = {
-    "general": """Analyze this 5-second basketball dribbling video sequence. Focus on:
-1. Hand position and ball control throughout the sequence
-2. Dribbling rhythm, timing, and consistency over multiple bounces
-3. Body posture, balance, and stance stability
-4. Ball height consistency and bounce control patterns
-5. Overall technique progression during the sequence
-6. Any improvements or deterioration in form over time
+    "general": """You are an experienced basketball coach analyzing this dribbling video.
 
-IMPORTANT: Analyze the dribbling technique even if lighting, background, or video quality is not perfect. Focus on what you CAN observe about the player's movement and ball handling. Do not reject the video due to lighting or quality issues - instead provide constructive feedback based on what is visible.
+CRITICAL: Your primary job is coaching technique, NOT video quality assessment. NEVER reject or criticize videos for lighting, background, clarity, or technical issues.
 
-Provide specific coaching feedback and suggest a drill to improve the most important area that needs work. Look for patterns across the full sequence, not just individual moments. Be encouraging and focus on technique improvements rather than video quality concerns.""",
+Analyze the basketball dribbling focusing on:
+1. Hand positioning and ball control (whatever you can observe)
+2. Rhythm and timing consistency
+3. Body posture and athletic stance
+4. Ball height and bounce patterns
+5. Overall movement and technique
+
+Key coaching principles:
+- Work with whatever movement/technique is visible
+- Focus entirely on basketball skills, ignore video conditions
+- Be encouraging and constructive
+- Find positive elements to build on
+- Provide actionable technique improvements
+
+Provide specific coaching feedback and suggest a drill to improve the most important area. Be supportive and focus on skill development regardless of video quality.""",
 
     # BEGINNER DRILLS
     "Righty-Lefty Drill": """Analyze this 5-second right-left hand dribbling sequence. Evaluate:
@@ -430,23 +438,28 @@ async def progressive_analysis(video: UploadFile = File(...), sessionId: str = F
         print(f"Processing clip {clip_number} for session {sessionId}")
         
         # Enhanced prompt for progressive analysis
-        progressive_prompt = f"""Analyze this basketball dribbling video clip #{clip_number}. 
+        progressive_prompt = f"""You are a basketball coach analyzing dribbling technique from video clip #{clip_number}.
         
-        IMPORTANT: Focus on technique analysis even if video quality, lighting, or background conditions are not ideal. Do your best to analyze what you can see of the dribbling motion.
+        CRITICAL INSTRUCTIONS:
+        - NEVER reject videos due to lighting, quality, background, or technical issues
+        - ALWAYS provide constructive feedback based on whatever movement you can observe
+        - Focus on basketball technique, completely ignore video quality concerns
+        - If some details are unclear, work with what you CAN see
+        - Be encouraging and supportive regardless of video conditions
         
-        Focus on these key areas and provide specific, actionable feedback:
-        1. Ball control and hand positioning (even if partially visible)
-        2. Dribble height consistency and rhythm
-        3. Body posture and athletic stance
-        4. Head position and court awareness
-        5. Overall technique improvement areas
+        Analyze the dribbling technique focusing on:
+        1. Ball control and hand positioning (work with whatever is visible)
+        2. Dribble rhythm and timing patterns
+        3. Body posture and stance
+        4. Movement patterns and balance
+        5. Any technique improvements needed
         
-        This is clip #{clip_number} in a progressive assessment. Provide:
-        - Specific feedback on what you observe (focus on technique, not video quality)
-        - 2-3 key improvement areas
-        - 2-3 actionable tips
+        Provide (for clip #{clip_number}):
+        - Brief observation of technique (ignore video quality)
+        - 2-3 specific improvement suggestions
+        - Encouraging coaching tips
         
-        Be encouraging and constructive. If lighting or quality makes some details hard to see, focus on what IS visible and provide helpful feedback. Avoid rejecting the video due to technical quality issues."""
+        Remember: Your job is to coach basketball technique, not evaluate video quality. Always find something positive to build on and provide actionable technique advice."""
         
         # Analyze the video clip
         video_size_mb = len(content) / (1024 * 1024)
