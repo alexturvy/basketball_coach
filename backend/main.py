@@ -8,15 +8,15 @@ from dotenv import load_dotenv
 import tempfile
 from typing import List, Optional, Dict, Any
 
-from .utils.session import (
+from utils.session import (
     AnalysisSession,
     ProgressiveFeedback,
     CoachingResponse,
     analysis_sessions,
     SATURATION_THRESHOLD,
 )
-from .utils.parsing import extract_key_areas, extract_tips
-from .utils.analysis import consolidate_session_feedback
+from utils.parsing import extract_key_areas, extract_tips
+from utils.analysis import consolidate_session_feedback
 
 load_dotenv()
 
