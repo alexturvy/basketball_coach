@@ -21,13 +21,15 @@ function App() {
   const videoChunksRef = useRef<Blob[]>([]);
   
   const [phase, setPhase] = useState<AppPhase>('initial');
-  const [feedback, setFeedback] = useState<string>("Basketball Dribbling Coach - Start dribbling to begin your assessment!");
+  const [feedback, setFeedback] = useState<string>("Ready to analyze your dribbling");
   const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [isAnalysisActive, setIsAnalysisActive] = useState<boolean>(false);
   const [currentDrill, setCurrentDrill] = useState<string | null>(null);
   const [initialAssessment, setInitialAssessment] = useState<CoachingResponse | null>(null);
   const [drillFeedback, setDrillFeedback] = useState<CoachingResponse | null>(null);
   const [cameraReady, setCameraReady] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [videoPaused, setVideoPaused] = useState<boolean>(false);
   
   // Progressive assessment state
   const [assessmentClips, setAssessmentClips] = useState<number>(0);
@@ -123,6 +125,33 @@ function App() {
     setupCamera();
   }, []);
 
+  const startAnalysis = () => {
+    setIsAnalysisActive(true);
+    setPhase('assessing');
+    setFeedback("Recording...");
+    resumeVideo();
+  };
+
+  const pauseVideo = () => {
+    setVideoPaused(true);
+    if (videoRef.current) {
+      videoRef.current.style.opacity = '0.6';
+    }
+  };
+
+  const resumeVideo = () => {
+    setVideoPaused(false);
+    if (videoRef.current) {
+      videoRef.current.style.opacity = '1';
+    }
+  };
+
+  const nextClip = () => {
+    setIsAnalysisActive(true);
+    setFeedback("Recording...");
+    resumeVideo();
+  };
+
   const analyzeVideoSequence = async (videoBlob: Blob) => {
     try {
       console.log('Sending video for progressive analysis...', videoBlob.size, 'bytes');
@@ -174,12 +203,15 @@ function App() {
           setBaselineComplete(true);
           setConsolidatedAssessment(data.consolidatedFeedback);
           setPhase('results');
-          setFeedback(`Assessment complete! Analyzed ${data.feedbackList?.length || 5} clips and identified key areas for improvement.`);
+          setFeedback("Assessment Complete");
+          setIsAnalysisActive(false);
+          pauseVideo();
         } else {
-          // Continue assessment
-          const progress = data.progress || `${data.clipNumber}/5`;
-          setFeedback(`Clip ${data.clipNumber} analyzed. Progress: ${progress}. Keep dribbling for more data...`);
+          // Continue assessment - pause after feedback
+          setFeedback("Clip Analyzed");
           setAssessmentClips(data.clipNumber);
+          setIsAnalysisActive(false);
+          pauseVideo();
         }
       } else if (phase === 'drilling') {
         // Use old endpoint for drill-specific feedback
@@ -264,8 +296,8 @@ function App() {
             });
           }
           
-          // Start recording when motion is detected - behavior depends on phase
-          if (motionDetected && !isRecording && (timeSinceLastAnalysis > ANALYSIS_INTERVAL) && mediaRecorderRef.current) {
+          // Start recording when motion is detected AND analysis is active
+          if (motionDetected && !isRecording && isAnalysisActive && (timeSinceLastAnalysis > ANALYSIS_INTERVAL) && mediaRecorderRef.current) {
             console.log('🔴 Starting recording...');
             setIsRecording(true);
             
@@ -273,12 +305,7 @@ function App() {
               mediaRecorderRef.current.start();
               console.log('MediaRecorder.start() called successfully');
               
-              if (phase === 'initial') {
-                setPhase('assessing');
-                setFeedback("Analyzing your dribbling technique...");
-              } else if (phase === 'drilling') {
-                setFeedback(`Recording ${currentDrill} performance...`);
-              }
+              setFeedback("Analyzing...");
               
               // Stop recording after SEQUENCE_DURATION
               setTimeout(() => {
@@ -301,7 +328,7 @@ function App() {
     }, 200);
 
     return () => clearInterval(interval);
-  }, [isRecording, currentDrill, phase]);
+  }, [isRecording, currentDrill, phase, isAnalysisActive]);
 
   const startDrill = (drillName: string) => {
     setCurrentDrill(drillName);
@@ -390,8 +417,46 @@ function App() {
     setSkillAreas(new Set());
     setBaselineComplete(false);
     setConsolidatedAssessment(null);
-    setFeedback("Basketball Dribbling Coach - Start dribbling to begin your assessment!");
+    setIsAnalysisActive(false);
+    setVideoPaused(false);
+    setFeedback("Ready to analyze your dribbling");
+    resumeVideo();
   };
+
+  // Clipboard component for feedback display
+  const ClipboardFeedback = () => {
+    if (cumulativeFeedback.length === 0) return null;
+    
+    return (
+      <div className="clipboard">
+        <div className="clipboard-header">Analysis Notes</div>
+        {cumulativeFeedback.map((feedback, index) => (
+          <div key={index} className="clipboard-item">
+            <div className="clipboard-item-header">Clip {index + 1}</div>
+            <div className="clipboard-item-content">{feedback}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Progress dots component
+  const ProgressDots = () => (
+    <div className="progress-compact">
+      <div className="progress-dots">
+        {[...Array(5)].map((_, index) => (
+          <div 
+            key={index} 
+            className={`progress-dot ${
+              index < assessmentClips ? 'completed' : 
+              index === assessmentClips ? 'active' : ''
+            }`}
+          />
+        ))}
+      </div>
+      <span style={{ fontSize: '0.8rem', opacity: 0.8 }}>{assessmentClips}/5</span>
+    </div>
+  );
 
   // Error boundary with ESPN styling
   if (error) {
@@ -443,12 +508,15 @@ function App() {
               <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
             </div>
             
-            <div className={`status-indicator ${isRecording ? 'recording' : ''}`}>
-              {isRecording && <span className="loading"></span>}
-              {isRecording ? 'LIVE RECORDING' : 'READY TO ANALYZE'}
-              <div style={{ fontSize: '0.9rem', marginTop: '4px', opacity: 0.9 }}>
-                {feedback}
+            <div className={`status-minimal ${
+              isRecording ? 'status-recording' : 
+              isAnalysisActive ? 'status-analyzing' :
+              videoPaused ? 'status-paused' : 'status-ready'
+            }`}>
+              <div className="status-icon">
+                {isRecording ? '●' : isAnalysisActive ? '⟳' : videoPaused ? '⏸' : '●'}
               </div>
+              <span>{feedback}</span>
             </div>
           </div>
           
@@ -458,11 +526,17 @@ function App() {
             {/* Initial Phase */}
             {phase === 'initial' && (
               <div>
-                <h3>Welcome to Your Personal Dribbling Coach!</h3>
-                <p>I'll analyze your dribbling and create a personalized training plan.</p>
+                <h3>🏀 Dribbling Analysis</h3>
                 <div className="card primary">
-                  <h4>🎯 Ready to Start?</h4>
-                  <p>Just start dribbling in front of the camera. I'll watch your technique and give you specific areas to work on!</p>
+                  <h4>Ready to Start</h4>
+                  <p>Position yourself in front of the camera and click when ready.</p>
+                  <button 
+                    className="btn primary"
+                    onClick={startAnalysis}
+                    style={{ width: '100%', marginTop: 'var(--spacing-md)' }}
+                  >
+                    🎯 Start Analysis
+                  </button>
                 </div>
               </div>
             )}
@@ -470,48 +544,26 @@ function App() {
             {/* Assessing Phase */}
             {phase === 'assessing' && (
               <div>
-                <h3>Building Your Assessment</h3>
-                <div className="card warning">
-                  <h4>🔍 Analyzing Clip {assessmentClips} of 5</h4>
-                  <p>I'm collecting feedback across multiple sequences to build a comprehensive evaluation.</p>
-                  <p><strong>Keep dribbling naturally!</strong></p>
-                  
-                  <div className="progress-container">
-                    <div className="progress-bar">
-                      <div 
-                        className="progress-fill" 
-                        style={{ width: `${(assessmentClips / 5) * 100}%` }}
-                      ></div>
-                    </div>
-                    <div className="progress-text">{assessmentClips}/5 clips analyzed</div>
-                  </div>
-                </div>
-
-                {/* Show accumulated feedback as it builds */}
-                {cumulativeFeedback.length > 0 && (
-                  <div>
-                    <h4>📝 Live Analysis Feed</h4>
-                    <div className="feedback-list">
-                      {cumulativeFeedback.map((feedback, index) => (
-                        <div key={index} className="feedback-item">
-                          <div className="feedback-header">
-                            Clip {index + 1}
-                          </div>
-                          <div className="feedback-content">{feedback}</div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {skillAreas.size > 0 && (
-                      <div className="card success">
-                        <h4>🎯 Key Areas Identified</h4>
-                        <div className="skill-tags">
-                          {Array.from(skillAreas).map((area, index) => (
-                            <span key={index} className="skill-tag">{area}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                <h3>Analysis in Progress</h3>
+                <ProgressDots />
+                
+                <ClipboardFeedback />
+                
+                {!isAnalysisActive && !baselineComplete && (
+                  <button 
+                    className="btn primary"
+                    onClick={nextClip}
+                    style={{ width: '100%', marginTop: 'var(--spacing-md)' }}
+                  >
+                    📹 Next Clip
+                  </button>
+                )}
+                
+                {skillAreas.size > 0 && (
+                  <div className="skill-tags">
+                    {Array.from(skillAreas).map((area, index) => (
+                      <span key={index} className="skill-tag">{area}</span>
+                    ))}
                   </div>
                 )}
               </div>
@@ -520,102 +572,48 @@ function App() {
             {/* Results Phase */}
             {phase === 'results' && (baselineComplete ? consolidatedAssessment : initialAssessment) && (
               <div>
-                <h3>📊 {baselineComplete ? 'Comprehensive Assessment' : 'Assessment Results'}</h3>
+                <h3>📊 Results</h3>
                 
-                {baselineComplete && (
-                  <div className="card success">
-                    <h4>✅ Assessment Complete!</h4>
-                    <p>Analyzed {assessmentClips} video clips</p>
-                    {skillAreas.size > 0 && (
-                      <div>
-                        <strong>Skill Areas Identified:</strong>
-                        <div className="skill-tags">
-                          {Array.from(skillAreas).map((area, index) => (
-                            <span key={index} className="skill-tag">{area}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Show feedback history in results */}
-                {cumulativeFeedback.length > 0 && (
-                  <div>
-                    <h4>📋 Your Analysis Journey</h4>
-                    <details className="collapsible">
-                      <summary>
-                        View All {cumulativeFeedback.length} Analysis Clips
-                      </summary>
-                      <div className="collapsible-content">
-                        <div className="feedback-list">
-                          {cumulativeFeedback.map((feedback, index) => (
-                            <div key={index} className="feedback-item">
-                              <div className="feedback-header">
-                                Clip {index + 1}
-                              </div>
-                              <div className="feedback-content">{feedback}</div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </details>
+                <ClipboardFeedback />
+                
+                {skillAreas.size > 0 && (
+                  <div className="skill-tags">
+                    {Array.from(skillAreas).map((area, index) => (
+                      <span key={index} className="skill-tag">{area}</span>
+                    ))}
                   </div>
                 )}
                 
                 <div className="card primary">
-                  <h4>🎯 Final Assessment</h4>
+                  <h4>Assessment Summary</h4>
                   <p>{(baselineComplete ? consolidatedAssessment : initialAssessment)?.feedback}</p>
-                  
-                  {(baselineComplete ? consolidatedAssessment : initialAssessment)?.technique && (
-                    <p><strong>Primary Focus Area:</strong> {(baselineComplete ? consolidatedAssessment : initialAssessment)?.technique}</p>
-                  )}
-                  
-                  {(() => {
-                    const currentAssessment = baselineComplete ? consolidatedAssessment : initialAssessment;
-                    return currentAssessment?.tips && currentAssessment.tips.length > 0 && (
-                      <div>
-                        <strong>Key Improvement Tips:</strong>
-                        <ul>
-                          {currentAssessment.tips.map((tip, index) => (
-                            <li key={index}>{tip}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    );
-                  })()}
                 </div>
 
-                <h4>🏀 Recommended Training</h4>
+                <h4>🏀 Training Drills</h4>
                 <div className="btn-grid">
-                  {/* Show drill suggestion from assessment */}
                   {(baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion && (
                     <button 
                       className="btn primary"
                       onClick={() => startDrill((baselineComplete ? consolidatedAssessment : initialAssessment)!.drillSuggestion!)} 
                     >
                       🎯 {(baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion}
-                      <small style={{ fontSize: '0.8rem', opacity: 0.9 }}>(Recommended)</small>
                     </button>
                   )}
                   
-                  {/* Additional skill-appropriate drills */}
                   {(() => {
                     const drills = [];
                     const hasControl = skillAreas.has('Ball Control');
                     const hasRhythm = skillAreas.has('Rhythm & Timing');
                     const hasPosition = skillAreas.has('Body Position');
                     
-                    if (hasControl) drills.push('Basic Stationary Dribble', 'Righty-Lefty Drill');
+                    if (hasControl) drills.push('Basic Stationary Dribble');
                     if (hasRhythm) drills.push('Red Light Green Light');
                     if (hasPosition) drills.push('Head Up Dribbling');
-                    if (skillAreas.size > 2) drills.push('Dribbling Around Cones');
                     
-                    // Remove the already recommended drill
                     const recommendedDrill = (baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion;
                     const filteredDrills = drills.filter(drill => drill !== recommendedDrill);
                     
-                    return Array.from(new Set(filteredDrills)).slice(0, 3).map((drill, index) => (
+                    return Array.from(new Set(filteredDrills)).slice(0, 2).map((drill, index) => (
                       <button 
                         key={index}
                         className="btn"
@@ -624,8 +622,7 @@ function App() {
                         🏀 {drill}
                       </button>
                     ));
-                  })()
-                  }
+                  })()}
                 </div>
                 
                 <button 
@@ -633,7 +630,7 @@ function App() {
                   onClick={restartAssessment}
                   style={{ marginTop: 'var(--spacing-lg)', width: '100%' }}
                 >
-                  🔄 Start New Assessment
+                  🔄 New Analysis
                 </button>
               </div>
             )}
@@ -643,26 +640,10 @@ function App() {
               <div>
                 <h3>🎯 {currentDrill}</h3>
                 
-                <div className="card warning">
-                  <h4>🏀 Drill In Progress</h4>
-                  <p>Practice this drill and I'll give you real-time feedback on your performance!</p>
-                </div>
-
                 {drillFeedback && (
                   <div className="card success">
-                    <h4>📊 Performance Feedback</h4>
+                    <h4>Performance Notes</h4>
                     <p>{drillFeedback.feedback}</p>
-                    
-                    {drillFeedback.tips && drillFeedback.tips.length > 0 && (
-                      <div>
-                        <strong>Improvement Tips:</strong>
-                        <ul>
-                          {drillFeedback.tips.map((tip, index) => (
-                            <li key={index}>{tip}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
                   </div>
                 )}
 
@@ -671,14 +652,14 @@ function App() {
                     className="btn danger"
                     onClick={stopDrill}
                   >
-                    ⏹️ Stop Drill
+                    ⏹️ Stop
                   </button>
                   
                   <button 
                     className="btn secondary"
                     onClick={restartAssessment}
                   >
-                    🔄 New Assessment
+                    🔄 New Analysis
                   </button>
                 </div>
               </div>
