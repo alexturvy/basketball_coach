@@ -6,7 +6,7 @@ import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 import tempfile
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 load_dotenv()
 
@@ -36,13 +36,35 @@ class CoachingResponse(BaseModel):
     technique: Optional[str] = None
     tips: Optional[List[str]] = None
 
+class ProgressiveFeedback(BaseModel):
+    clipNumber: int
+    feedback: str
+    keyAreas: List[str]
+    tips: List[str]
+    timestamp: str
+
+class AnalysisSession(BaseModel):
+    sessionId: str
+    feedbackList: List[ProgressiveFeedback] = []
+    keyThemes: List[str] = []
+    skillLevel: str = "intermediate"
+    saturated: bool = False
+    consolidatedFeedback: Optional[CoachingResponse] = None
+
 # Configure Gemini API
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-flash')
 
+# In-memory storage for analysis sessions (use Redis in production)
+analysis_sessions: Dict[str, AnalysisSession] = {}
+
+# Configuration for progressive analysis
+MAX_FEEDBACK_ROUNDS = 6
+SATURATION_THRESHOLD = 5
+
 # Basketball coaching knowledge base with comprehensive dribbling drills from YMCA curriculum
 DRILL_PROMPTS = {
-    "general": """Analyze this 8-second basketball dribbling video sequence. Focus on:
+    "general": """Analyze this 5-second basketball dribbling video sequence. Focus on:
 1. Hand position and ball control throughout the sequence
 2. Dribbling rhythm, timing, and consistency over multiple bounces
 3. Body posture, balance, and stance stability
@@ -53,7 +75,7 @@ DRILL_PROMPTS = {
 Provide specific coaching feedback and suggest a drill to improve the most important area that needs work. Look for patterns across the full sequence, not just individual moments.""",
 
     # BEGINNER DRILLS
-    "Righty-Lefty Drill": """Analyze this 8-second right-left hand dribbling sequence. Evaluate:
+    "Righty-Lefty Drill": """Analyze this 5-second right-left hand dribbling sequence. Evaluate:
 1. Control when switching from right to left hand multiple times
 2. Consistent ball height with both hands throughout the sequence
 3. Smooth transitions at each switch point
@@ -128,7 +150,7 @@ This critical skill separates good dribblers from great ones.""",
 Develops court awareness and ball control.""",
 
     # ADVANCED DRILLS
-    "One on One Dribbling": """Evaluate this 8-second defensive pressure sequence. Check:
+    "One on One Dribbling": """Evaluate this 5-second defensive pressure sequence. Check:
 1. Ball protection under defensive pressure throughout the sequence
 2. Use of body to shield the ball consistently
 3. Multiple change of pace attempts to beat defender
@@ -294,40 +316,73 @@ def get_drills():
 async def analyze_sequence(video: UploadFile = File(...), drill: str = Form("general")):
     """Analyze a video sequence for basketball coaching feedback"""
     try:
-        # Save uploaded video to temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
-            content = await video.read()
-            temp_file.write(content)
-            temp_file_path = temp_file.name
+        # Read video content
+        content = await video.read()
+        print(f"Received video: {len(content)} bytes")
         
         # Get the appropriate prompt for the drill type
         prompt = DRILL_PROMPTS.get(drill, DRILL_PROMPTS["general"])
         
-        # Upload video to Gemini
-        video_file = genai.upload_file(path=temp_file_path)
+        # Use proper inline video data for small videos (<20MB)
+        video_size_mb = len(content) / (1024 * 1024)
+        print(f"Video size: {video_size_mb:.2f} MB")
         
-        # Wait for file to become active (Gemini needs processing time)
-        import time
-        max_wait_time = 30  # Maximum 30 seconds
-        wait_time = 0
-        
-        while video_file.state.name == "PROCESSING" and wait_time < max_wait_time:
-            print(f"Waiting for video processing... ({wait_time}s)")
-            time.sleep(2)
-            video_file = genai.get_file(video_file.name)
-            wait_time += 2
-        
-        if video_file.state.name != "ACTIVE":
-            raise Exception(f"Video file failed to process. State: {video_file.state.name}")
-        
-        # Generate content with video
-        response = model.generate_content([
-            prompt,
-            video_file
-        ])
-        
-        # Clean up temporary file
-        os.unlink(temp_file_path)
+        if video_size_mb < 20:
+            # Use inline data approach (recommended for small videos)
+            print("Using inline video data approach...")
+            response = model.generate_content([
+                prompt,
+                {
+                    "inline_data": {
+                        "mime_type": "video/webm",
+                        "data": content  # Raw bytes, not base64
+                    }
+                }
+            ])
+            print("Inline video analysis successful")
+        else:
+            # Use File API for larger videos
+            print("Video too large, using File API approach...")
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
+                temp_file.write(content)
+                temp_file_path = temp_file.name
+            
+            try:
+                # Upload video to Gemini
+                print(f"Uploading video file: {temp_file_path}")
+                video_file = genai.upload_file(path=temp_file_path)
+                print(f"Video uploaded. File name: {video_file.name}, initial state: {video_file.state.name}")
+                
+                # Wait for file to become active
+                import time
+                max_wait_time = 60
+                wait_time = 0
+                
+                while video_file.state.name == "PROCESSING" and wait_time < max_wait_time:
+                    print(f"Waiting for video processing... ({wait_time}s)")
+                    time.sleep(3)
+                    video_file = genai.get_file(video_file.name)
+                    wait_time += 3
+                
+                if video_file.state.name != "ACTIVE":
+                    raise Exception(f"Video file failed to process. Final state: {video_file.state.name}")
+                
+                print("File is ACTIVE, generating content...")
+                response = model.generate_content([prompt, video_file])
+                print("File upload analysis successful")
+                
+                # Clean up Gemini file
+                try:
+                    genai.delete_file(video_file.name)
+                    print(f"Cleaned up Gemini file: {video_file.name}")
+                except Exception as cleanup_error:
+                    print(f"Warning: Could not clean up Gemini file: {cleanup_error}")
+                    
+            finally:
+                # Clean up temporary file
+                if os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+                    print("Cleaned up temporary file")
         
         # Parse response into structured format
         coaching_response = parse_coaching_response(response.text, drill)
@@ -335,10 +390,262 @@ async def analyze_sequence(video: UploadFile = File(...), drill: str = Form("gen
         return coaching_response.dict()
         
     except Exception as e:
+        print(f"Analysis failed: {str(e)}")
         return CoachingResponse(
             feedback=f"Error analyzing video: {str(e)}",
             tips=["Try recording a clearer video with good lighting"]
         ).dict()
+
+@app.post("/progressive_analysis")
+async def progressive_analysis(video: UploadFile = File(...), sessionId: str = Form(...)):
+    """Progressive clip-by-clip analysis with feedback accumulation"""
+    import datetime
+    import uuid
+    
+    try:
+        # Get or create analysis session
+        if sessionId not in analysis_sessions:
+            analysis_sessions[sessionId] = AnalysisSession(sessionId=sessionId)
+        
+        session = analysis_sessions[sessionId]
+        
+        # Check if session is already saturated
+        if session.saturated:
+            return {
+                "saturated": True,
+                "consolidatedFeedback": session.consolidatedFeedback.dict() if session.consolidatedFeedback else None,
+                "feedbackList": [f.dict() for f in session.feedbackList]
+            }
+        
+        # Read video content
+        content = await video.read()
+        clip_number = len(session.feedbackList) + 1
+        
+        print(f"Processing clip {clip_number} for session {sessionId}")
+        
+        # Enhanced prompt for progressive analysis
+        progressive_prompt = f"""Analyze this basketball dribbling video clip #{clip_number}. 
+        
+        Focus on these key areas and provide specific, actionable feedback:
+        1. Ball control and hand positioning
+        2. Dribble height consistency and rhythm
+        3. Body posture and athletic stance
+        4. Head position and court awareness
+        5. Overall technique improvement areas
+        
+        This is clip #{clip_number} in a progressive assessment. Provide:
+        - Specific feedback on what you observe
+        - 2-3 key improvement areas
+        - 2-3 actionable tips
+        
+        Be concise but specific about technique details."""
+        
+        # Analyze the video clip
+        video_size_mb = len(content) / (1024 * 1024)
+        print(f"Video size: {video_size_mb:.2f} MB")
+        
+        if video_size_mb < 20:
+            response = model.generate_content([
+                progressive_prompt,
+                {
+                    "inline_data": {
+                        "mime_type": "video/webm",
+                        "data": content
+                    }
+                }
+            ])
+        else:
+            # File API fallback for larger videos
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
+                temp_file.write(content)
+                temp_file_path = temp_file.name
+            
+            try:
+                video_file = genai.upload_file(path=temp_file_path)
+                
+                # Wait for processing
+                import time
+                wait_time = 0
+                while video_file.state.name == "PROCESSING" and wait_time < 30:
+                    time.sleep(2)
+                    video_file = genai.get_file(video_file.name)
+                    wait_time += 2
+                
+                if video_file.state.name != "ACTIVE":
+                    raise Exception(f"Video processing failed: {video_file.state.name}")
+                
+                response = model.generate_content([progressive_prompt, video_file])
+                genai.delete_file(video_file.name)
+            finally:
+                if os.path.exists(temp_file_path):
+                    os.unlink(temp_file_path)
+        
+        # Parse feedback and extract key areas
+        feedback_text = response.text
+        key_areas = extract_key_areas(feedback_text)
+        tips = extract_tips(feedback_text)
+        
+        # Create progressive feedback entry
+        progressive_feedback = ProgressiveFeedback(
+            clipNumber=clip_number,
+            feedback=feedback_text,
+            keyAreas=key_areas,
+            tips=tips,
+            timestamp=datetime.datetime.now().isoformat()
+        )
+        
+        # Add to session
+        session.feedbackList.append(progressive_feedback)
+        
+        # Update session themes
+        session.keyThemes = list(set(session.keyThemes + key_areas))
+        
+        # Check for saturation
+        if len(session.feedbackList) >= SATURATION_THRESHOLD:
+            print(f"Reaching saturation for session {sessionId}")
+            consolidated = consolidate_session_feedback(session)
+            session.consolidatedFeedback = consolidated
+            session.saturated = True
+            
+            return {
+                "clipNumber": clip_number,
+                "feedback": progressive_feedback.dict(),
+                "saturated": True,
+                "consolidatedFeedback": consolidated.dict(),
+                "feedbackList": [f.dict() for f in session.feedbackList],
+                "keyThemes": session.keyThemes
+            }
+        
+        # Return current feedback
+        return {
+            "clipNumber": clip_number,
+            "feedback": progressive_feedback.dict(),
+            "saturated": False,
+            "progress": f"{len(session.feedbackList)}/{SATURATION_THRESHOLD}",
+            "feedbackList": [f.dict() for f in session.feedbackList],
+            "keyThemes": session.keyThemes
+        }
+        
+    except Exception as e:
+        print(f"Progressive analysis failed: {str(e)}")
+        return {
+            "error": f"Error analyzing video: {str(e)}",
+            "clipNumber": len(analysis_sessions.get(sessionId, AnalysisSession(sessionId=sessionId)).feedbackList) + 1
+        }
+
+def extract_key_areas(feedback_text: str) -> List[str]:
+    """Extract key skill areas from feedback"""
+    areas = []
+    text_lower = feedback_text.lower()
+    
+    if "control" in text_lower or "grip" in text_lower:
+        areas.append("Ball Control")
+    if "rhythm" in text_lower or "timing" in text_lower or "consistency" in text_lower:
+        areas.append("Rhythm & Timing")
+    if "posture" in text_lower or "stance" in text_lower or "position" in text_lower:
+        areas.append("Body Position")
+    if "height" in text_lower or "bounce" in text_lower:
+        areas.append("Dribble Height")
+    if "hand" in text_lower or "finger" in text_lower:
+        areas.append("Hand Technique")
+    if "head" in text_lower or "eyes" in text_lower or "awareness" in text_lower:
+        areas.append("Court Awareness")
+    
+    return areas
+
+def extract_tips(feedback_text: str) -> List[str]:
+    """Extract actionable tips from feedback"""
+    lines = feedback_text.split('\n')
+    tips = []
+    
+    for line in lines:
+        line = line.strip()
+        if any(starter in line.lower() for starter in ['tip:', 'try', 'focus on', 'practice', 'work on', 'remember']):
+            clean_tip = line.lstrip('•-*123456789. ').strip()
+            if clean_tip and len(clean_tip) > 10:  # Filter out very short tips
+                tips.append(clean_tip)
+    
+    # If no structured tips found, extract sentences with action words
+    if not tips:
+        sentences = feedback_text.split('.')
+        for sentence in sentences:
+            if any(word in sentence.lower() for word in ['should', 'try', 'focus', 'keep', 'maintain', 'improve']):
+                clean_sentence = sentence.strip()
+                if len(clean_sentence) > 15:
+                    tips.append(clean_sentence)
+    
+    return tips[:3]  # Return top 3 tips
+
+def consolidate_session_feedback(session: AnalysisSession) -> CoachingResponse:
+    """Consolidate all feedback from a session into final assessment"""
+    
+    all_feedback = " ".join([f.feedback for f in session.feedbackList])
+    all_areas = list(set([area for f in session.feedbackList for area in f.keyAreas]))
+    all_tips = list(set([tip for f in session.feedbackList for tip in f.tips]))
+    
+    # Create consolidation prompt
+    consolidation_prompt = f"""Based on {len(session.feedbackList)} basketball dribbling video clips, provide a comprehensive assessment.
+    
+    Accumulated feedback: {all_feedback}
+    
+    Key areas identified: {', '.join(all_areas)}
+    
+    Please consolidate this into:
+    1. A comprehensive assessment (2-3 sentences) highlighting the main patterns and themes
+    2. The top 3 most important areas to focus on
+    3. Specific drill recommendation based on the identified needs
+    4. Primary technique focus area
+    
+    Format your response clearly with sections."""
+    
+    try:
+        consolidation_response = model.generate_content([consolidation_prompt])
+        consolidated_text = consolidation_response.text
+        
+        # Parse the consolidated response
+        consolidated_feedback = parse_coaching_response(consolidated_text, "consolidation")
+        
+        # Enhance with session data
+        if not consolidated_feedback.tips:
+            consolidated_feedback.tips = all_tips[:3]
+        
+        if not consolidated_feedback.technique and all_areas:
+            consolidated_feedback.technique = all_areas[0]
+            
+        return consolidated_feedback
+        
+    except Exception as e:
+        print(f"Consolidation failed: {e}")
+        # Fallback consolidation
+        return CoachingResponse(
+            feedback=f"Based on {len(session.feedbackList)} clips, main focus areas are: {', '.join(all_areas[:3])}",
+            technique=all_areas[0] if all_areas else "Ball Control",
+            tips=all_tips[:3],
+            drillSuggestion="Basic Stationary Dribble"
+        )
+
+@app.get("/session/{sessionId}")
+def get_session(sessionId: str):
+    """Get current session state"""
+    if sessionId not in analysis_sessions:
+        return {"error": "Session not found"}
+    
+    session = analysis_sessions[sessionId]
+    return {
+        "sessionId": sessionId,
+        "feedbackList": [f.dict() for f in session.feedbackList],
+        "keyThemes": session.keyThemes,
+        "saturated": session.saturated,
+        "consolidatedFeedback": session.consolidatedFeedback.dict() if session.consolidatedFeedback else None,
+        "progress": f"{len(session.feedbackList)}/{SATURATION_THRESHOLD}"
+    }
+
+@app.delete("/session/{sessionId}")
+def reset_session(sessionId: str):
+    """Reset/clear a session"""
+    if sessionId in analysis_sessions:
+        del analysis_sessions[sessionId]
+    return {"message": f"Session {sessionId} reset"}
 
 @app.post("/video_feed")
 async def video_feed(image_data: ImageData):

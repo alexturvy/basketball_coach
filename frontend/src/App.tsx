@@ -125,16 +125,22 @@ function App() {
 
   const analyzeVideoSequence = async (videoBlob: Blob) => {
     try {
-      console.log('Sending video for analysis...', videoBlob.size, 'bytes');
-      console.log('API URL:', process.env.REACT_APP_API_URL || 'http://localhost:8000');
+      console.log('Sending video for progressive analysis...', videoBlob.size, 'bytes');
+      
+      // Generate or use existing session ID
+      let sessionId = localStorage.getItem('basketballCoachSessionId');
+      if (!sessionId) {
+        sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        localStorage.setItem('basketballCoachSessionId', sessionId);
+      }
       
       const formData = new FormData();
       formData.append('video', videoBlob, 'sequence.webm');
-      formData.append('drill', currentDrill || 'general');
+      formData.append('sessionId', sessionId);
 
-      setFeedback('Sending video to AI for analysis...');
+      setFeedback('Analyzing your dribbling technique...');
 
-      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/analyze_sequence`, {
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/progressive_analysis`, {
         method: 'POST',
         body: formData,
       });
@@ -146,48 +152,51 @@ function App() {
       }
 
       const data = await response.json();
-      console.log('Analysis response:', data);
+      console.log('Progressive analysis response:', data);
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
       
       if (phase === 'initial' || phase === 'assessing') {
-        // Progressive assessment phase - accumulate feedback
-        const newClipCount = assessmentClips + 1;
-        setAssessmentClips(newClipCount);
-        
-        // Add new feedback to cumulative collection
-        const newFeedback = [...cumulativeFeedback, data.feedback];
-        setCumulativeFeedback(newFeedback);
-        
-        // Accumulate tips
-        if (data.tips) {
-          const newTips = [...allTips, ...data.tips];
-          setAllTips(newTips);
+        // Update feedback list with new clip
+        if (data.feedbackList) {
+          setCumulativeFeedback(data.feedbackList.map((f: any) => f.feedback));
+          
+          // Update skill areas from key themes
+          if (data.keyThemes) {
+            setSkillAreas(new Set(data.keyThemes));
+          }
         }
         
-        // Extract and categorize skill areas
-        const newSkillAreas = new Set(skillAreas);
-        const feedbackLower = data.feedback.toLowerCase();
-        if (feedbackLower.includes('control')) newSkillAreas.add('Ball Control');
-        if (feedbackLower.includes('rhythm') || feedbackLower.includes('timing')) newSkillAreas.add('Rhythm & Timing');
-        if (feedbackLower.includes('posture') || feedbackLower.includes('stance')) newSkillAreas.add('Body Position');
-        if (feedbackLower.includes('height') || feedbackLower.includes('bounce')) newSkillAreas.add('Ball Height');
-        if (feedbackLower.includes('hand') || feedbackLower.includes('fingertip')) newSkillAreas.add('Hand Technique');
-        setSkillAreas(newSkillAreas);
-        
-        if (newClipCount >= MAX_ASSESSMENT_CLIPS) {
-          // Complete baseline assessment - consolidate all feedback
+        if (data.saturated && data.consolidatedFeedback) {
+          // Assessment is complete - show consolidated results
           setBaselineComplete(true);
-          const consolidatedFeedback = consolidateFeedback(newFeedback, allTips, newSkillAreas);
-          setConsolidatedAssessment(consolidatedFeedback);
+          setConsolidatedAssessment(data.consolidatedFeedback);
           setPhase('results');
-          setFeedback(`Baseline assessment complete! Analyzed ${newClipCount} clips.`);
+          setFeedback(`Assessment complete! Analyzed ${data.feedbackList?.length || 5} clips and identified key areas for improvement.`);
         } else {
           // Continue assessment
-          setFeedback(`Clip ${newClipCount}/${MAX_ASSESSMENT_CLIPS} analyzed. Keep dribbling for more assessment data...`);
+          const progress = data.progress || `${data.clipNumber}/5`;
+          setFeedback(`Clip ${data.clipNumber} analyzed. Progress: ${progress}. Keep dribbling for more data...`);
+          setAssessmentClips(data.clipNumber);
         }
       } else if (phase === 'drilling') {
-        // Drill-specific feedback
-        setDrillFeedback(data);
-        setFeedback(`${currentDrill} - ${data.feedback}`);
+        // Use old endpoint for drill-specific feedback
+        const drillFormData = new FormData();
+        drillFormData.append('video', videoBlob, 'sequence.webm');
+        drillFormData.append('drill', currentDrill || 'general');
+
+        const drillResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/analyze_sequence`, {
+          method: 'POST',
+          body: drillFormData,
+        });
+
+        if (drillResponse.ok) {
+          const drillData = await drillResponse.json();
+          setDrillFeedback(drillData);
+          setFeedback(`${currentDrill} - ${drillData.feedback}`);
+        }
       }
     } catch (error) {
       console.error('Error analyzing video sequence:', error);
@@ -356,7 +365,21 @@ function App() {
     };
   };
 
-  const restartAssessment = () => {
+  const restartAssessment = async () => {
+    // Clear session on backend
+    const sessionId = localStorage.getItem('basketballCoachSessionId');
+    if (sessionId) {
+      try {
+        await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/session/${sessionId}`, {
+          method: 'DELETE',
+        });
+      } catch (error) {
+        console.warn('Failed to clear session:', error);
+      }
+      localStorage.removeItem('basketballCoachSessionId');
+    }
+    
+    // Reset local state
     setPhase('initial');
     setCurrentDrill(null);
     setInitialAssessment(null);
@@ -480,32 +503,77 @@ function App() {
                   padding: '15px', 
                   backgroundColor: '#fff3cd', 
                   borderRadius: '8px',
-                  color: '#333'
+                  color: '#333',
+                  marginBottom: '15px'
                 }}>
-                  <p>🔍 Collecting clip {assessmentClips + 1} of {MAX_ASSESSMENT_CLIPS}</p>
-                  <p>I'm analyzing your dribbling patterns across multiple sequences to build a comprehensive evaluation.</p>
+                  <p>🔍 Analyzing clip {assessmentClips} of 5</p>
+                  <p>I'm collecting feedback across multiple sequences to build a comprehensive evaluation.</p>
                   <p>Keep dribbling naturally!</p>
                   
-                  {assessmentClips > 0 && (
-                    <div style={{ marginTop: '10px' }}>
-                      <strong>Progress:</strong>
+                  <div style={{ marginTop: '10px' }}>
+                    <strong>Progress:</strong>
+                    <div style={{ 
+                      width: '100%', 
+                      backgroundColor: '#e0e0e0', 
+                      borderRadius: '10px', 
+                      marginTop: '5px' 
+                    }}>
                       <div style={{ 
-                        width: '100%', 
-                        backgroundColor: '#e0e0e0', 
-                        borderRadius: '10px', 
-                        marginTop: '5px' 
-                      }}>
-                        <div style={{ 
-                          width: `${(assessmentClips / MAX_ASSESSMENT_CLIPS) * 100}%`, 
-                          backgroundColor: '#28a745', 
-                          height: '8px', 
-                          borderRadius: '10px' 
-                        }}></div>
-                      </div>
-                      <small>{assessmentClips}/{MAX_ASSESSMENT_CLIPS} clips collected</small>
+                        width: `${(assessmentClips / 5) * 100}%`, 
+                        backgroundColor: '#28a745', 
+                        height: '8px', 
+                        borderRadius: '10px' 
+                      }}></div>
                     </div>
-                  )}
+                    <small>{assessmentClips}/5 clips analyzed</small>
+                  </div>
                 </div>
+
+                {/* Show accumulated feedback as it builds */}
+                {cumulativeFeedback.length > 0 && (
+                  <div>
+                    <h4>📝 Analysis Feedback</h4>
+                    <div style={{ 
+                      maxHeight: '300px', 
+                      overflowY: 'auto',
+                      border: '1px solid #ddd',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      backgroundColor: '#f8f9fa'
+                    }}>
+                      {cumulativeFeedback.map((feedback, index) => (
+                        <div key={index} style={{
+                          padding: '10px',
+                          marginBottom: '8px',
+                          backgroundColor: 'white',
+                          borderRadius: '6px',
+                          borderLeft: '4px solid #007bff',
+                          fontSize: '14px'
+                        }}>
+                          <div style={{ 
+                            fontWeight: 'bold', 
+                            color: '#007bff',
+                            marginBottom: '4px' 
+                          }}>
+                            Clip {index + 1}:
+                          </div>
+                          <div>{feedback}</div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {skillAreas.size > 0 && (
+                      <div style={{ 
+                        marginTop: '10px',
+                        padding: '10px',
+                        backgroundColor: '#e8f4fd',
+                        borderRadius: '6px'
+                      }}>
+                        <strong>🎯 Key Areas Identified:</strong> {Array.from(skillAreas).join(', ')}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -522,8 +590,54 @@ function App() {
                     color: '#333',
                     marginBottom: '15px'
                   }}>
-                    <p><strong>✅ Baseline Complete!</strong> Analyzed {assessmentClips} video clips</p>
+                    <p><strong>✅ Assessment Complete!</strong> Analyzed {assessmentClips} video clips</p>
                     <p><strong>Skill Areas Identified:</strong> {Array.from(skillAreas).join(', ')}</p>
+                  </div>
+                )}
+
+                {/* Show feedback history in results */}
+                {cumulativeFeedback.length > 0 && (
+                  <div style={{ marginBottom: '15px' }}>
+                    <h4>📋 Your Feedback Journey</h4>
+                    <details style={{ 
+                      border: '1px solid #ddd',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      backgroundColor: '#f8f9fa'
+                    }}>
+                      <summary style={{ 
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        marginBottom: '10px'
+                      }}>
+                        View All {cumulativeFeedback.length} Analysis Clips
+                      </summary>
+                      <div style={{ 
+                        maxHeight: '200px', 
+                        overflowY: 'auto',
+                        marginTop: '10px'
+                      }}>
+                        {cumulativeFeedback.map((feedback, index) => (
+                          <div key={index} style={{
+                            padding: '8px',
+                            marginBottom: '6px',
+                            backgroundColor: 'white',
+                            borderRadius: '4px',
+                            borderLeft: '3px solid #28a745',
+                            fontSize: '13px'
+                          }}>
+                            <div style={{ 
+                              fontWeight: 'bold', 
+                              color: '#28a745',
+                              marginBottom: '2px' 
+                            }}>
+                              Clip {index + 1}:
+                            </div>
+                            <div>{feedback}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
                   </div>
                 )}
                 
@@ -534,18 +648,18 @@ function App() {
                   color: '#333',
                   marginBottom: '15px'
                 }}>
-                  <h4>What I Noticed:</h4>
+                  <h4>🎯 Final Assessment:</h4>
                   <p>{(baselineComplete ? consolidatedAssessment : initialAssessment)?.feedback}</p>
                   
                   {(baselineComplete ? consolidatedAssessment : initialAssessment)?.technique && (
-                    <p><strong>Key Focus Area:</strong> {(baselineComplete ? consolidatedAssessment : initialAssessment)?.technique}</p>
+                    <p><strong>Primary Focus Area:</strong> {(baselineComplete ? consolidatedAssessment : initialAssessment)?.technique}</p>
                   )}
                   
                   {(() => {
                     const currentAssessment = baselineComplete ? consolidatedAssessment : initialAssessment;
                     return currentAssessment?.tips && currentAssessment.tips.length > 0 && (
                       <div>
-                        <strong>Improvement Tips:</strong>
+                        <strong>Key Improvement Tips:</strong>
                         <ul>
                           {currentAssessment.tips.map((tip, index) => (
                             <li key={index}>{tip}</li>
