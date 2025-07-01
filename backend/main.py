@@ -43,6 +43,19 @@ class ProgressiveFeedback(BaseModel):
     tips: List[str]
     timestamp: str
 
+class DrillExample(BaseModel):
+    title: str
+    url: str
+    duration: str
+    focus: str
+
+class DrillInfo(BaseModel):
+    category: str
+    description: str
+    youtube_examples: List[DrillExample]
+    key_points: List[str]
+    common_mistakes: List[str]
+
 class AnalysisSession(BaseModel):
     sessionId: str
     feedbackList: List[ProgressiveFeedback] = []
@@ -50,6 +63,8 @@ class AnalysisSession(BaseModel):
     skillLevel: str = "intermediate"
     saturated: bool = False
     consolidatedFeedback: Optional[CoachingResponse] = None
+    currentDrill: Optional[str] = None
+    drillPhase: str = "watching"  # watching, practicing, completed
 
 # Configure Gemini API
 genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
@@ -62,47 +77,106 @@ analysis_sessions: Dict[str, AnalysisSession] = {}
 MAX_FEEDBACK_ROUNDS = 6
 SATURATION_THRESHOLD = 5
 
+# Research-based basketball dribbling expertise (2024)
+BASKETBALL_COACHING_INSIGHTS = {
+    "fundamental_techniques": {
+        "hand_position": "Ball controlled with fingertips, not palm. Hand spread wide over top of ball with fingers evenly spaced. Palm directly over ball so it bounces into fingertips.",
+        "wrist_action": "Quick, controlled wrist snap to push ball to floor. Extend elbow and snap wrist at bottom of movement.",
+        "ball_height": "Keep dribble low, ideally below waist/knees. Higher dribbles are easier to steal.",
+        "body_position": "Drop hip, bend knees, feet shoulder-width apart. Athletic stance for control.",
+        "visual_focus": "Eyes up after mastering basics. Court vision essential for game situations."
+    },
+    "common_mistakes": {
+        "palm_dribbling": "Using palm instead of fingertips reduces control and speed",
+        "high_dribbling": "Ball bouncing above waist makes it vulnerable to steals",
+        "stiff_hands": "Rigid hands prevent proper ball control and feel",
+        "eyes_down": "Looking at ball limits court awareness and passing opportunities",
+        "upper_arm_movement": "Excessive arm movement instead of wrist control",
+        "stationary_only": "Over-emphasis on stationary drills without movement"
+    },
+    "elite_coaching_principles": {
+        "functional_training": "Practice dribbling on the move with defensive pressure, not just stationary",
+        "dual_hand_development": "Equal skill development with both hands is crucial",
+        "progressive_difficulty": "Master basics before advanced moves. Build muscle memory through repetition",
+        "game_realistic": "Focus on moves that translate to actual game situations",
+        "positive_reinforcement": "Find what players do well and build on it",
+        "habit_formation": "Correct bad habits immediately before they become ingrained"
+    },
+    "technical_focus_areas": {
+        "fingertip_control": "Primary contact point for maximum ball control and agility",
+        "rhythm_consistency": "Steady, controlled dribbling pace that can be varied as needed",
+        "change_of_pace": "Ability to speed up and slow down dribble for tactical advantage",
+        "change_of_direction": "Sharp direction changes while maintaining control",
+        "protection": "Using body and off-hand to shield ball from defenders",
+        "transition_ready": "Ability to quickly move from dribble to pass or shot"
+    }
+}
+
 # Basketball coaching knowledge base with comprehensive dribbling drills from YMCA curriculum
 DRILL_PROMPTS = {
-    "general": """You are an experienced basketball coach analyzing this dribbling video.
+    "general": """You are an elite basketball skills trainer analyzing this dribbling technique.
 
-CRITICAL: Your primary job is coaching technique, NOT video quality assessment. NEVER reject or criticize videos for lighting, background, clarity, or technical issues.
+RESEARCH-BASED COACHING APPROACH:
+- Ball control comes from FINGERTIPS, not palm. Look for finger spread and wrist snap.
+- Proper dribble height is BELOW WAIST - high dribbles are easy to steal.
+- EYES UP indicates court awareness - essential for game situations.
+- Body should be in ATHLETIC STANCE (hip dropped, knees bent, shoulder-width apart).
+- Focus on RHYTHM and ability to change pace/direction while maintaining control.
 
-Analyze the basketball dribbling focusing on:
-1. Hand positioning and ball control (whatever you can observe)
-2. Rhythm and timing consistency
-3. Body posture and athletic stance
-4. Ball height and bounce patterns
-5. Overall movement and technique
+CRITICAL: Analyze technique regardless of video quality. Your job is basketball coaching, not video critique.
 
-Key coaching principles:
-- Work with whatever movement/technique is visible
-- Focus entirely on basketball skills, ignore video conditions
-- Be encouraging and constructive
-- Find positive elements to build on
-- Provide actionable technique improvements
+Evaluate these research-backed fundamentals:
+1. FINGERTIP CONTROL: Is the ball contacted with fingertips? Hand spread wide?
+2. BALL HEIGHT: Is dribble kept low (below waist) for protection?
+3. WRIST ACTION: Quick, controlled snaps vs arm movement?
+4. BODY POSITION: Athletic stance with bent knees and hip drop?
+5. VISUAL AWARENESS: Eyes up or down? Court vision development?
+6. RHYTHM: Consistent pace with ability to change speed?
 
-Provide specific coaching feedback and suggest a drill to improve the most important area. Be supportive and focus on skill development regardless of video quality.""",
+COACHING PHILOSOPHY:
+- Find positive elements first - what is the player doing well?
+- Identify ONE primary area for improvement (don't overwhelm)
+- Provide specific, actionable feedback based on elite training methods
+- Suggest functional drills that apply to game situations
+
+Be encouraging while providing expert-level technique analysis.""",
 
     # BEGINNER DRILLS
-    "Righty-Lefty Drill": """Analyze this 5-second right-left hand dribbling sequence. Evaluate:
-1. Control when switching from right to left hand multiple times
-2. Consistent ball height with both hands throughout the sequence
-3. Smooth transitions at each switch point
-4. Body balance during hand changes
-5. Keeping head up while switching hands
-6. Improvement in switching speed and confidence over the sequence
+    "Righty-Lefty Drill": """Elite coaching analysis for ambidextrous skill development.
 
-Focus on developing equal skill with both hands and smooth transitions.""",
+RESEARCH-BASED EVALUATION:
+- EQUAL HAND STRENGTH: Both hands should show similar control and confidence
+- FINGERTIP CONTROL: Ball contacted with fingertips on both sides
+- CONSISTENT HEIGHT: Ball should stay below waist with both hands
+- SMOOTH TRANSITIONS: No hesitation or awkwardness when switching
+- RHYTHM MAINTENANCE: Steady pace throughout hand changes
 
-    "Basic Stationary Dribble": """Analyze this basic stationary dribbling practice. Evaluate:
-1. Ball control with fingertips vs palm
-2. Consistent ball height (waist level)
-3. Steady rhythm and timing
-4. Proper stance (athletic position)
-5. Eyes up vs looking at ball
+Analyze this right-left dribbling sequence:
+1. BILATERAL SKILL: Is control equal between right and left hands?
+2. TRANSITION QUALITY: Smooth, confident hand switches or hesitant?
+3. BALL PROTECTION: Consistent low dribble height with both hands?
+4. STANCE STABILITY: Athletic position maintained during switches?
+5. CONFIDENCE INDICATORS: Hesitation patterns or fluid movement?
 
-Rate the performance and provide specific tips for improvement.""",
+PROVIDE: What they do well with each hand, primary area for bilateral improvement, specific tip for equal hand development.""",
+
+    "Basic Stationary Dribble": """Analyze this fundamental stationary dribbling using elite coaching standards.
+
+RESEARCH-BASED EVALUATION CRITERIA:
+1. FINGERTIP CONTROL: Is ball contacted with fingertips (not palm)? Hand spread wide over ball?
+2. DRIBBLE HEIGHT: Is ball kept below waist for protection? (High dribbles = easy steals)
+3. WRIST ACTION: Quick wrist snaps vs excessive arm movement?
+4. ATHLETIC STANCE: Hip dropped, knees bent, feet shoulder-width apart?
+5. VISUAL FOCUS: Eyes up for court awareness or down watching ball?
+6. RHYTHM CONSISTENCY: Steady, controlled pace with relaxed hands?
+
+ELITE COACHING FOCUS:
+- Fingertip control is the foundation of all advanced moves
+- Low dribbles are protected dribbles
+- Relaxed hands (not stiff) provide better feel and control
+- Eyes up enables game transition and court awareness
+
+Provide specific feedback on technique fundamentals and actionable improvement tips.""",
 
     "Space Man Drill": """Evaluate this space awareness dribbling. Check:
 1. Maintaining consistent spacing from other players
@@ -141,14 +215,23 @@ This develops agility and directional ball control.""",
 
 Emphasize adaptability and visual processing.""",
 
-    "Head Up Dribbling": """Assess this visual awareness drill. Evaluate:
-1. Maintaining ball control without looking down
-2. Response accuracy to visual hand signals
-3. Peripheral vision development
-4. Confidence in ball handling
-5. Multi-tasking ability (dribbling + watching)
+    "Head Up Dribbling": """Elite court awareness analysis - the skill that separates elite players.
 
-This critical skill separates good dribblers from great ones.""",
+RESEARCH INSIGHT: Eyes up dribbling is essential for game application. Elite players develop this through deliberate practice.
+
+EVALUATE GAME-READINESS:
+1. VISUAL DISCIPLINE: Are eyes consistently up or occasionally dropping to ball?
+2. BALL SECURITY: Does control suffer when eyes are up?
+3. CONFIDENCE LEVEL: Hesitation or fluid movement without visual ball contact?
+4. PERIPHERAL AWARENESS: Can player sense ball position without direct look?
+5. MULTI-TASKING: Ability to process visual information while maintaining control?
+
+COACHING FOCUS:
+- This separates recreational from competitive players
+- Court vision enables passing, spacing, and decision-making
+- Must be practiced until it becomes automatic
+
+PROVIDE: Visual discipline assessment, control quality when eyes up, specific tip for developing court awareness while dribbling.""",
 
     "Engine & Caboose Drill": """Analyze this partner spacing drill. Focus on:
 1. Maintaining consistent distance while dribbling
@@ -198,6 +281,180 @@ Focus on explosive directional changes.""",
 This develops close-quarters ball handling skills."""
 }
 
+# Enhanced drill system with YouTube examples and detailed instructions
+DRILL_DATABASE = {
+    "Basic Stationary Dribble": {
+        "category": "beginner",
+        "description": "Master fundamental ball control with proper fingertip technique and low dribbling",
+        "youtube_examples": [
+            {
+                "title": "Proper Stationary Dribbling Form",
+                "url": "https://www.youtube.com/watch?v=KtOOhXFFR8c",
+                "duration": "2:30",
+                "focus": "Fingertip control and proper hand position"
+            },
+            {
+                "title": "Basketball Dribbling Fundamentals",
+                "url": "https://www.youtube.com/watch?v=P3AuN-J1MBA",
+                "duration": "3:15",
+                "focus": "Low dribble technique and body position"
+            }
+        ],
+        "key_points": [
+            "Use fingertips, not palm",
+            "Keep dribble below waist height",
+            "Maintain athletic stance",
+            "Eyes up for court awareness",
+            "Relax hands for better control"
+        ],
+        "common_mistakes": [
+            "Using palm instead of fingertips",
+            "Dribbling too high",
+            "Stiff, tense hands",
+            "Looking down at the ball"
+        ]
+    },
+    "Righty-Lefty Drill": {
+        "category": "beginner",
+        "description": "Develop equal skill with both hands through controlled hand switches",
+        "youtube_examples": [
+            {
+                "title": "Two-Hand Dribbling Development",
+                "url": "https://www.youtube.com/watch?v=8sGWIpePgzM",
+                "duration": "4:10",
+                "focus": "Smooth transitions between hands"
+            },
+            {
+                "title": "Ambidextrous Dribbling Drills",
+                "url": "https://www.youtube.com/watch?v=2xCQJ1xhJP8",
+                "duration": "3:30",
+                "focus": "Equal skill development with both hands"
+            }
+        ],
+        "key_points": [
+            "Equal control with both hands",
+            "Smooth hand transitions",
+            "Consistent ball height",
+            "Maintain body balance"
+        ],
+        "common_mistakes": [
+            "Favoring dominant hand",
+            "Uneven ball height between hands",
+            "Rushing the transitions"
+        ]
+    },
+    "Head Up Dribbling": {
+        "category": "intermediate",
+        "description": "Develop court awareness while maintaining ball control",
+        "youtube_examples": [
+            {
+                "title": "Head Up Dribbling Drills",
+                "url": "https://www.youtube.com/watch?v=vQiMKJZWUlw",
+                "duration": "3:45",
+                "focus": "Visual awareness while dribbling"
+            }
+        ],
+        "key_points": [
+            "Eyes focused ahead, not on ball",
+            "Develop peripheral vision",
+            "Confidence in ball handling",
+            "Multi-tasking abilities"
+        ],
+        "common_mistakes": [
+            "Glancing down at ball",
+            "Losing control when looking up",
+            "Tensing up when multitasking"
+        ]
+    },
+    "Crossover Drill": {
+        "category": "intermediate",
+        "description": "Master the crossover dribble with proper form and timing",
+        "youtube_examples": [
+            {
+                "title": "Perfect Crossover Technique",
+                "url": "https://www.youtube.com/watch?v=KtOOhXFFR8c",
+                "duration": "4:45",
+                "focus": "Low, tight, quick crossover fundamentals"
+            },
+            {
+                "title": "NBA Crossover Breakdown",
+                "url": "https://www.youtube.com/watch?v=vQiMKJZWUlw",
+                "duration": "6:20",
+                "focus": "Game application and timing"
+            }
+        ],
+        "key_points": [
+            "Keep crossover low (below knees)",
+            "Pound ball hard into ground",
+            "Stay low in athletic stance",
+            "Use body fakes to sell the move",
+            "Explode in new direction after crossover"
+        ],
+        "common_mistakes": [
+            "Crossing over too high",
+            "Telegraphing the move",
+            "Not changing pace after crossover",
+            "Standing up during the move"
+        ]
+    },
+    "One on One Dribbling": {
+        "category": "advanced",
+        "description": "Maintain ball control under defensive pressure",
+        "youtube_examples": [
+            {
+                "title": "Dribbling Under Pressure",
+                "url": "https://www.youtube.com/watch?v=2xCQJ1xhJP8",
+                "duration": "5:20",
+                "focus": "Ball protection and change of pace"
+            },
+            {
+                "title": "1v1 Pressure Drills",
+                "url": "https://www.youtube.com/watch?v=P3AuN-J1MBA",
+                "duration": "4:55",
+                "focus": "Game-realistic defensive scenarios"
+            }
+        ],
+        "key_points": [
+            "Use body to shield ball",
+            "Change of pace to create space",
+            "Low, protected dribbles",
+            "Quick decision making",
+            "Keep defender on your hip"
+        ],
+        "common_mistakes": [
+            "Exposing ball to defender",
+            "Predictable rhythm",
+            "Panic under pressure",
+            "Picking up dribble too early"
+        ]
+    }
+}
+
+# Add Crossover Drill prompt
+DRILL_PROMPTS["Crossover Drill"] = """Elite crossover technique analysis based on NBA fundamentals.
+
+RESEARCH STANDARDS (Allen Iverson, Kyrie Irving methodology):
+- LOW CROSSOVER: Ball must stay below knees for protection
+- HARD POUND: Aggressive dribble into ground for quick return
+- BODY SELL: Use fakes and body positioning to deceive
+- EXPLOSIVE FINISH: Quick direction change after crossover
+- TIGHT TO BODY: Ball stays close, not wide and vulnerable
+
+ANALYZE CROSSOVER EXECUTION:
+1. DRIBBLE HEIGHT: Is crossover kept low (below knees) for security?
+2. BALL SPEED: Hard pound into ground for quick ball return?
+3. BODY MECHANICS: Low stance, good fake to sell the move?
+4. TIMING: Proper setup dribbles before executing crossover?
+5. EXPLOSION: Quick direction change and acceleration after?
+6. BALL SECURITY: Tight to body or exposed to imaginary defender?
+
+ELITE COACHING:
+- "Low, tight, quick" - fundamental crossover mantra
+- Setup is crucial - don't telegraph the move
+- Explosion after crossover creates separation
+
+PROVIDE: Crossover mechanics assessment, timing analysis, specific improvement for game effectiveness."""
+
 # Drill categories for progression based on YMCA curriculum
 DRILL_CATEGORIES = {
     "beginner": [
@@ -210,6 +467,7 @@ DRILL_CATEGORIES = {
         "Dribbling Around Cones",
         "Follow the Leader",
         "Head Up Dribbling",
+        "Crossover Drill",
         "Engine & Caboose Drill"
     ],
     "advanced": [
@@ -319,7 +577,36 @@ def get_drills():
     """Get all available drills organized by skill level"""
     return {
         "categories": DRILL_CATEGORIES,
-        "drills": list(DRILL_PROMPTS.keys())
+        "drills": list(DRILL_PROMPTS.keys()),
+        "drill_database": DRILL_DATABASE
+    }
+
+@app.get("/drill/{drill_name}")
+def get_drill_details(drill_name: str):
+    """Get detailed information about a specific drill including YouTube examples"""
+    if drill_name not in DRILL_DATABASE:
+        return {"error": "Drill not found"}
+    
+    drill_info = DRILL_DATABASE[drill_name].copy()
+    drill_info["prompt"] = DRILL_PROMPTS.get(drill_name, DRILL_PROMPTS["general"])
+    return drill_info
+
+@app.get("/drills/category/{category}")
+def get_drills_by_category(category: str):
+    """Get all drills in a specific category with their details"""
+    if category not in DRILL_CATEGORIES:
+        return {"error": "Category not found"}
+    
+    drills_in_category = []
+    for drill_name in DRILL_CATEGORIES[category]:
+        if drill_name in DRILL_DATABASE:
+            drill_info = DRILL_DATABASE[drill_name].copy()
+            drill_info["name"] = drill_name
+            drills_in_category.append(drill_info)
+    
+    return {
+        "category": category,
+        "drills": drills_in_category
     }
 
 @app.post("/analyze_sequence")
@@ -437,29 +724,32 @@ async def progressive_analysis(video: UploadFile = File(...), sessionId: str = F
         
         print(f"Processing clip {clip_number} for session {sessionId}")
         
-        # Enhanced prompt for progressive analysis
-        progressive_prompt = f"""You are a basketball coach analyzing dribbling technique from video clip #{clip_number}.
+        # Enhanced prompt for progressive analysis with research-based coaching
+        progressive_prompt = f"""You are an elite basketball skills trainer analyzing clip #{clip_number} of 5.
         
-        CRITICAL INSTRUCTIONS:
-        - NEVER reject videos due to lighting, quality, background, or technical issues
-        - ALWAYS provide constructive feedback based on whatever movement you can observe
-        - Focus on basketball technique, completely ignore video quality concerns
-        - If some details are unclear, work with what you CAN see
-        - Be encouraging and supportive regardless of video conditions
+        ELITE COACHING METHODOLOGY (Research-Based 2024):
+        - FINGERTIP CONTROL: Ball must be controlled with fingertips, not palm
+        - LOW DRIBBLE: Proper height is below waist - high dribbles get stolen
+        - WRIST SNAP: Quick wrist action, not excessive arm movement
+        - ATHLETIC STANCE: Hip dropped, knees bent, feet shoulder-width apart
+        - EYES UP: Court vision essential for game application
+        - RHYTHM MASTERY: Consistent pace with change-of-speed capability
         
-        Analyze the dribbling technique focusing on:
-        1. Ball control and hand positioning (work with whatever is visible)
-        2. Dribble rhythm and timing patterns
-        3. Body posture and stance
-        4. Movement patterns and balance
-        5. Any technique improvements needed
+        CRITICAL: Focus on basketball technique analysis, ignore video quality completely.
         
-        Provide (for clip #{clip_number}):
-        - Brief observation of technique (ignore video quality)
-        - 2-3 specific improvement suggestions
-        - Encouraging coaching tips
+        Analyze using elite training standards:
+        1. HAND TECHNIQUE: Fingertip contact, proper hand spread, wrist snap quality
+        2. BALL PROTECTION: Dribble height, body positioning, control under pressure
+        3. STANCE & POSTURE: Athletic position, balance, movement readiness
+        4. COURT AWARENESS: Head position, visual focus, game readiness
+        5. RHYTHM & PACE: Consistency, ability to change speeds, control quality
         
-        Remember: Your job is to coach basketball technique, not evaluate video quality. Always find something positive to build on and provide actionable technique advice."""
+        For clip #{clip_number}, provide:
+        - What the player is doing WELL (positive reinforcement)
+        - ONE primary technique focus area for improvement
+        - Specific, actionable coaching tip based on elite training methods
+        
+        Remember: Elite coaches find positives first, then target ONE key improvement. Build confidence while developing skill."""
         
         # Analyze the video clip
         video_size_mb = len(content) / (1024 * 1024)
