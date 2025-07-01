@@ -1,9 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import './App.css';
 
-const MOTION_THRESHOLD = 25000; // Lower threshold = more sensitive
-const SEQUENCE_DURATION = 10000; // 10 seconds of video for better analysis
-const ANALYSIS_INTERVAL = 12000; // Analyze every 12 seconds to avoid overwhelming API
 const MAX_RETRIES = 3; // Maximum retry attempts for failed requests
 
 interface CoachingResponse {
@@ -38,7 +35,6 @@ function App() {
   
   const [phase, setPhase] = useState<AppPhase>('initial');
   const [feedback, setFeedback] = useState<string>("Ready to analyze your dribbling");
-  const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isAnalysisActive, setIsAnalysisActive] = useState<boolean>(false);
   const [currentDrill, setCurrentDrill] = useState<string | null>(null);
   const [initialAssessment, setInitialAssessment] = useState<CoachingResponse | null>(null);
@@ -60,9 +56,6 @@ function App() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [drillPhase, setDrillPhase] = useState<'watching' | 'practicing' | 'completed'>('watching');
   
-  const prevFrameData = useRef<Uint8ClampedArray | null>(null);
-  const lastAnalysisTime = useRef<number>(0);
-
   useEffect(() => {
     async function setupCamera() {
       console.log('Basketball Coach: Setting up camera...');
@@ -240,9 +233,21 @@ function App() {
       }
       
       if (phase === 'initial' || phase === 'assessing') {
-        // Update feedback list with new clip
+        // Optimistically add a 'Processing...' entry if not already present
+        setCumulativeFeedback(prev => {
+          if (prev.length === assessmentClips) {
+            return [...prev, 'Processing...'];
+          }
+          return prev;
+        });
+        
         if (data.feedbackList) {
-          setCumulativeFeedback(data.feedbackList.map((f: any) => f.feedback));
+          setCumulativeFeedback(prev => {
+            // Replace the last entry (which should be 'Processing...') with the new feedback
+            const updated = [...prev];
+            updated[updated.length - 1] = data.feedbackList[data.feedbackList.length - 1].feedback;
+            return updated;
+          });
           console.log('Updated feedbackList:', data.feedbackList.length, 'items');
           
           // Update skill areas from key themes
@@ -325,109 +330,6 @@ function App() {
       }, 4000);
     }
   };
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (videoRef.current && canvasRef.current && mediaRecorderRef.current) {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        const context = canvas.getContext('2d');
-
-        // Check if video has valid dimensions before proceeding
-        if (context && video.videoWidth > 0 && video.videoHeight > 0) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-
-          const currentFrameData = context.getImageData(0, 0, canvas.width, canvas.height).data;
-          let motionDetected = false;
-
-          if (prevFrameData.current) {
-            let diff = 0;
-            for (let i = 0; i < currentFrameData.length; i += 4) {
-              diff += Math.abs(currentFrameData[i] - prevFrameData.current[i]);
-              diff += Math.abs(currentFrameData[i + 1] - prevFrameData.current[i + 1]);
-              diff += Math.abs(currentFrameData[i + 2] - prevFrameData.current[i + 2]);
-            }
-            
-            // Debug motion detection every 2 seconds
-            if (Date.now() % 2000 < 200) {
-              console.log('Motion diff:', diff, 'Threshold:', MOTION_THRESHOLD, 'Motion detected:', diff > MOTION_THRESHOLD);
-            }
-            
-            if (diff > MOTION_THRESHOLD) {
-              motionDetected = true;
-            }
-          }
-
-          prevFrameData.current = currentFrameData;
-
-          const currentTime = Date.now();
-          const timeSinceLastAnalysis = currentTime - lastAnalysisTime.current;
-          
-          // Debug recording conditions
-          if (motionDetected && Date.now() % 2000 < 200) {
-            console.log('Recording conditions:', {
-              motionDetected,
-              isRecording,
-              timeSinceLastAnalysis,
-              analysisInterval: ANALYSIS_INTERVAL,
-              phase,
-              mediaRecorderExists: !!mediaRecorderRef.current
-            });
-          }
-          
-          // Start recording when motion is detected AND analysis is active
-          if (motionDetected && !isRecording && isAnalysisActive && (timeSinceLastAnalysis > ANALYSIS_INTERVAL) && mediaRecorderRef.current) {
-            console.log('🔴 Starting recording...');
-            setIsRecording(true);
-            setRecordingProgress(0);
-            
-            try {
-              mediaRecorderRef.current.start();
-              console.log('MediaRecorder.start() called successfully');
-              
-              const startTime = Date.now();
-              
-              // Progress tracking interval
-              const progressInterval = setInterval(() => {
-                const elapsed = Date.now() - startTime;
-                const progress = Math.min(100, (elapsed / SEQUENCE_DURATION) * 100);
-                setRecordingProgress(progress);
-                
-                const remaining = Math.ceil((SEQUENCE_DURATION - elapsed) / 1000);
-                setFeedback(`Recording... ${remaining}s`);
-                
-                if (elapsed >= SEQUENCE_DURATION) {
-                  clearInterval(progressInterval);
-                }
-              }, 100);
-              
-              // Stop recording after SEQUENCE_DURATION
-              setTimeout(() => {
-                console.log('⏹️ Stopping recording after timeout...');
-                clearInterval(progressInterval);
-                if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-                  mediaRecorderRef.current.stop();
-                  console.log('MediaRecorder.stop() called');
-                }
-                setIsRecording(false);
-                setRecordingProgress(0);
-                lastAnalysisTime.current = currentTime;
-              }, SEQUENCE_DURATION);
-              
-            } catch (recordError) {
-              console.error('Failed to start recording:', recordError);
-              setIsRecording(false);
-            }
-          }
-        }
-      }
-    }, 200);
-
-    return () => clearInterval(interval);
-  }, [isRecording, currentDrill, phase, isAnalysisActive]);
 
   const startDrill = async (drillName: string) => {
     try {
@@ -585,7 +487,7 @@ function App() {
   
   // Simple recording countdown (removed duplicate progress component)
   const RecordingCountdown = () => {
-    if (!isRecording) return null;
+    if (!isAnalysisActive) return null;
     
     const remaining = Math.ceil((100 - recordingProgress) * 100 / 1000);
     return (
@@ -646,12 +548,11 @@ function App() {
             </div>
             
             <div className={`status-minimal ${
-              isRecording ? 'status-recording' : 
               isAnalysisActive ? 'status-analyzing' :
               videoPaused ? 'status-paused' : 'status-ready'
             }`}>
               <div className="status-icon">
-                {isRecording ? '●' : isAnalysisActive ? '⟳' : videoPaused ? '⏸' : '●'}
+                {isAnalysisActive ? '⟳' : videoPaused ? '⏸' : '●'}
               </div>
               <span>{feedback}</span>
             </div>

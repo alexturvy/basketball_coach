@@ -21,7 +21,11 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now
+    allow_origins=[
+      "http://localhost:3000",
+      "https://basketball-coach.vercel.app",
+      "https://alexturvy.com"
+    ],
     allow_credentials=False,  # Set to False when using wildcard
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
