@@ -11,18 +11,15 @@ cd /Users/alexturvy/basketball_coach
 
 **Terminal 1 - Backend:**
 ```bash
-# Navigate to backend directory
-cd backend
-
-# Activate virtual environment (create if it doesn't exist)
+# From the project root
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r backend/requirements.txt
 
 # Start the FastAPI server
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 The backend will be available at: http://localhost:8000
@@ -74,9 +71,9 @@ Your Google API key has been securely added to `backend/.env` and is excluded fr
 
 ## Troubleshooting
 
-### Backend Issues:
-- **Port 8000 in use**: Change port with `uvicorn main:app --reload --port 8001`
-- **Missing dependencies**: Re-run `pip install -r requirements.txt`
+-### Backend Issues:
+- **Port 8000 in use**: Change port with `uvicorn backend.main:app --reload --port 8001`
+- **Missing dependencies**: Re-run `pip install -r backend/requirements.txt`
 - **API key error**: Verify `.env` file exists in backend directory
 
 ### Frontend Issues:

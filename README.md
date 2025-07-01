@@ -38,31 +38,26 @@ An intelligent basketball coaching application that uses computer vision and AI 
 - Modern web browser (Chrome recommended)
 
 ### Backend Setup
-1. **Navigate to backend directory:**
-   ```bash
-   cd backend
-   ```
-
-2. **Create virtual environment:**
+1. **Create virtual environment (from project root):**
    ```bash
    python -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. **Install dependencies:**
+2. **Install dependencies:**
    ```bash
-   pip install -r requirements.txt
+   pip install -r backend/requirements.txt
    ```
 
-4. **Configure environment:**
+3. **Configure environment:**
    ```bash
-   # Create .env file
-   echo "GOOGLE_API_KEY=your_google_api_key_here" > .env
+   # Create .env file in the backend folder
+   echo "GOOGLE_API_KEY=your_google_api_key_here" > backend/.env
    ```
 
-5. **Start the server:**
+4. **Start the server (from project root):**
    ```bash
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 ### Frontend Setup
