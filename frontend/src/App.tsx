@@ -42,18 +42,14 @@ function App() {
   const [cameraReady, setCameraReady] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [videoPaused, setVideoPaused] = useState<boolean>(false);
-  const [recordingProgress, setRecordingProgress] = useState<number>(0);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [retryCount, setRetryCount] = useState<number>(0);
-  
-  // Progressive assessment state
-  const [assessmentClips, setAssessmentClips] = useState<number>(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingProgress, setRecordingProgress] = useState(0);
+  const [assessmentClips, setAssessmentClips] = useState(0);
   const [cumulativeFeedback, setCumulativeFeedback] = useState<string[]>([]);
   const [skillAreas, setSkillAreas] = useState<Set<string>>(new Set());
   const [baselineComplete, setBaselineComplete] = useState<boolean>(false);
   const [consolidatedAssessment, setConsolidatedAssessment] = useState<CoachingResponse | null>(null);
   const [selectedDrillInfo, setSelectedDrillInfo] = useState<DrillInfo | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [drillPhase, setDrillPhase] = useState<'watching' | 'practicing' | 'completed'>('watching');
   
   useEffect(() => {
@@ -163,7 +159,6 @@ function App() {
     setSkillAreas(new Set());
     setBaselineComplete(false);
     setConsolidatedAssessment(null);
-    setRetryCount(0);
     setRecordingProgress(0);
     
     setIsAnalysisActive(true);
@@ -187,9 +182,16 @@ function App() {
   };
 
   const nextClip = () => {
+    setIsRecording(true);
+    setRecordingProgress(0);
     setIsAnalysisActive(true);
     setFeedback("Recording...");
-    resumeVideo();
+  };
+
+  const stopRecording = () => {
+    setIsRecording(false);
+    setRecordingProgress(0);
+    // Call analyzeVideoSequence with the recorded blob
   };
 
   const analyzeVideoSequence = async (videoBlob: Blob, attempt: number = 1) => {
@@ -262,14 +264,18 @@ function App() {
           setConsolidatedAssessment(data.consolidatedFeedback);
           setPhase('results');
           setFeedback("Assessment Complete");
-          setAssessmentClips(data.clipNumber); // Use actual clip number from backend
+          setAssessmentClips(prev => prev + 1);
           setIsAnalysisActive(false);
+          setIsRecording(false);
+          setRecordingProgress(0);
           pauseVideo();
         } else {
           // Continue assessment - pause after feedback and wait for manual next
           setFeedback(`Clip ${data.clipNumber} analyzed - Click Next Clip to continue`);
-          setAssessmentClips(data.clipNumber);
+          setAssessmentClips(prev => prev + 1);
           setIsAnalysisActive(false);
+          setIsRecording(false);
+          setRecordingProgress(0);
           pauseVideo();
         }
       } else if (phase === 'drilling' || phase === 'drill-practicing') {
@@ -288,6 +294,8 @@ function App() {
           setDrillFeedback(drillData);
           setFeedback(`Practice complete - Check your feedback below`);
           setIsAnalysisActive(false);
+          setIsRecording(false);
+          setRecordingProgress(0);
           pauseVideo();
         }
       }
@@ -319,7 +327,9 @@ function App() {
       }
       
       setFeedback(`Analysis failed: ${errorMessage}`);
-      setRetryCount(0); // Reset retry count
+      setIsRecording(false);
+      setIsAnalysisActive(false);
+      setRecordingProgress(0);
       
       // Reset state so user can try again
       setTimeout(() => {
@@ -487,7 +497,7 @@ function App() {
   
   // Simple recording countdown (removed duplicate progress component)
   const RecordingCountdown = () => {
-    if (!isAnalysisActive) return null;
+    if (!isRecording) return null;
     
     const remaining = Math.ceil((100 - recordingProgress) * 100 / 1000);
     return (
