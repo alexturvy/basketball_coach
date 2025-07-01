@@ -167,6 +167,7 @@ function App() {
     setPhase('assessing');
     setFeedback("Recording...");
     resumeVideo();
+    nextClip();
   };
 
   const pauseVideo = () => {
