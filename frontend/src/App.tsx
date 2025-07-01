@@ -393,40 +393,28 @@ function App() {
     setFeedback("Basketball Dribbling Coach - Start dribbling to begin your assessment!");
   };
 
-  // Simple error boundary
+  // Error boundary with ESPN styling
   if (error) {
     return (
       <div className="App">
         <header className="App-header">
           <h1>🏀 Basketball Dribbling Coach</h1>
-          <div style={{ 
-            padding: '20px', 
-            backgroundColor: '#f8d7da', 
-            color: '#721c24',
-            borderRadius: '8px',
-            maxWidth: '600px',
-            margin: '20px'
-          }}>
+          <div className="error-container">
             <h3>⚠️ Setup Issue</h3>
             <p>{error}</p>
-            <p><strong>Troubleshooting:</strong></p>
-            <ul style={{ textAlign: 'left' }}>
-              <li>Make sure you're using HTTPS (not HTTP)</li>
-              <li>Check browser permissions for camera access</li>
-              <li>Try refreshing the page</li>
-              <li>Try a different browser (Chrome works best)</li>
-            </ul>
+            <div className="card" style={{ textAlign: 'left', marginTop: 'var(--spacing-lg)' }}>
+              <h4>Troubleshooting Steps:</h4>
+              <ul>
+                <li>Make sure you're using HTTPS (not HTTP)</li>
+                <li>Check browser permissions for camera access</li>
+                <li>Try refreshing the page</li>
+                <li>Try a different browser (Chrome works best)</li>
+              </ul>
+            </div>
             <button 
+              className="btn primary"
               onClick={() => window.location.reload()} 
-              style={{ 
-                padding: '10px 20px',
-                backgroundColor: '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: 'pointer',
-                marginTop: '10px'
-              }}
+              style={{ marginTop: 'var(--spacing-lg)' }}
             >
               🔄 Reload Page
             </button>
@@ -442,54 +430,38 @@ function App() {
         <h1>🏀 Basketball Dribbling Coach</h1>
         
         {!cameraReady && (
-          <div style={{ 
-            padding: '15px', 
-            backgroundColor: '#fff3cd', 
-            borderRadius: '8px',
-            color: '#333',
-            marginBottom: '20px',
-            maxWidth: '600px'
-          }}>
+          <div className="card warning">
             <p>📹 Setting up camera... Please allow camera access when prompted.</p>
           </div>
         )}
         
-        <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-          {/* Video Feed */}
-          <div>
-            <video ref={videoRef} autoPlay playsInline muted width="640" height="480"></video>
-            <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
+        <div className="main-container">
+          {/* Video Section */}
+          <div className="video-section">
+            <div className="video-container">
+              <video ref={videoRef} autoPlay playsInline muted></video>
+              <canvas ref={canvasRef} style={{ display: 'none' }}></canvas>
+            </div>
             
-            <div style={{ marginTop: '10px' }}>
-              <div style={{ 
-                padding: '15px', 
-                backgroundColor: isRecording ? '#ff4444' : '#333', 
-                borderRadius: '8px',
-                color: 'white',
-                fontSize: '16px'
-              }}>
-                {isRecording && '🔴 Recording...'}
-                <p style={{ margin: 0 }}>{feedback}</p>
+            <div className={`status-indicator ${isRecording ? 'recording' : ''}`}>
+              {isRecording && <span className="loading"></span>}
+              {isRecording ? 'LIVE RECORDING' : 'READY TO ANALYZE'}
+              <div style={{ fontSize: '0.9rem', marginTop: '4px', opacity: 0.9 }}>
+                {feedback}
               </div>
             </div>
           </div>
           
           {/* Coaching Panel */}
-          <div style={{ minWidth: '350px', textAlign: 'left' }}>
+          <div className="coaching-panel">
             
             {/* Initial Phase */}
             {phase === 'initial' && (
               <div>
                 <h3>Welcome to Your Personal Dribbling Coach!</h3>
                 <p>I'll analyze your dribbling and create a personalized training plan.</p>
-                <div style={{ 
-                  padding: '15px', 
-                  backgroundColor: '#e8f4fd', 
-                  borderRadius: '8px',
-                  color: '#333',
-                  marginTop: '10px'
-                }}>
-                  <p><strong>🎯 Ready to start?</strong></p>
+                <div className="card primary">
+                  <h4>🎯 Ready to Start?</h4>
                   <p>Just start dribbling in front of the camera. I'll watch your technique and give you specific areas to work on!</p>
                 </div>
               </div>
@@ -498,78 +470,46 @@ function App() {
             {/* Assessing Phase */}
             {phase === 'assessing' && (
               <div>
-                <h3>Building Your Assessment...</h3>
-                <div style={{ 
-                  padding: '15px', 
-                  backgroundColor: '#fff3cd', 
-                  borderRadius: '8px',
-                  color: '#333',
-                  marginBottom: '15px'
-                }}>
-                  <p>🔍 Analyzing clip {assessmentClips} of 5</p>
+                <h3>Building Your Assessment</h3>
+                <div className="card warning">
+                  <h4>🔍 Analyzing Clip {assessmentClips} of 5</h4>
                   <p>I'm collecting feedback across multiple sequences to build a comprehensive evaluation.</p>
-                  <p>Keep dribbling naturally!</p>
+                  <p><strong>Keep dribbling naturally!</strong></p>
                   
-                  <div style={{ marginTop: '10px' }}>
-                    <strong>Progress:</strong>
-                    <div style={{ 
-                      width: '100%', 
-                      backgroundColor: '#e0e0e0', 
-                      borderRadius: '10px', 
-                      marginTop: '5px' 
-                    }}>
-                      <div style={{ 
-                        width: `${(assessmentClips / 5) * 100}%`, 
-                        backgroundColor: '#28a745', 
-                        height: '8px', 
-                        borderRadius: '10px' 
-                      }}></div>
+                  <div className="progress-container">
+                    <div className="progress-bar">
+                      <div 
+                        className="progress-fill" 
+                        style={{ width: `${(assessmentClips / 5) * 100}%` }}
+                      ></div>
                     </div>
-                    <small>{assessmentClips}/5 clips analyzed</small>
+                    <div className="progress-text">{assessmentClips}/5 clips analyzed</div>
                   </div>
                 </div>
 
                 {/* Show accumulated feedback as it builds */}
                 {cumulativeFeedback.length > 0 && (
                   <div>
-                    <h4>📝 Analysis Feedback</h4>
-                    <div style={{ 
-                      maxHeight: '300px', 
-                      overflowY: 'auto',
-                      border: '1px solid #ddd',
-                      borderRadius: '8px',
-                      padding: '10px',
-                      backgroundColor: '#f8f9fa'
-                    }}>
+                    <h4>📝 Live Analysis Feed</h4>
+                    <div className="feedback-list">
                       {cumulativeFeedback.map((feedback, index) => (
-                        <div key={index} style={{
-                          padding: '10px',
-                          marginBottom: '8px',
-                          backgroundColor: 'white',
-                          borderRadius: '6px',
-                          borderLeft: '4px solid #007bff',
-                          fontSize: '14px'
-                        }}>
-                          <div style={{ 
-                            fontWeight: 'bold', 
-                            color: '#007bff',
-                            marginBottom: '4px' 
-                          }}>
-                            Clip {index + 1}:
+                        <div key={index} className="feedback-item">
+                          <div className="feedback-header">
+                            Clip {index + 1}
                           </div>
-                          <div>{feedback}</div>
+                          <div className="feedback-content">{feedback}</div>
                         </div>
                       ))}
                     </div>
                     
                     {skillAreas.size > 0 && (
-                      <div style={{ 
-                        marginTop: '10px',
-                        padding: '10px',
-                        backgroundColor: '#e8f4fd',
-                        borderRadius: '6px'
-                      }}>
-                        <strong>🎯 Key Areas Identified:</strong> {Array.from(skillAreas).join(', ')}
+                      <div className="card success">
+                        <h4>🎯 Key Areas Identified</h4>
+                        <div className="skill-tags">
+                          {Array.from(skillAreas).map((area, index) => (
+                            <span key={index} className="skill-tag">{area}</span>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
@@ -583,72 +523,48 @@ function App() {
                 <h3>📊 {baselineComplete ? 'Comprehensive Assessment' : 'Assessment Results'}</h3>
                 
                 {baselineComplete && (
-                  <div style={{ 
-                    padding: '15px', 
-                    backgroundColor: '#e8f4fd', 
-                    borderRadius: '8px',
-                    color: '#333',
-                    marginBottom: '15px'
-                  }}>
-                    <p><strong>✅ Assessment Complete!</strong> Analyzed {assessmentClips} video clips</p>
-                    <p><strong>Skill Areas Identified:</strong> {Array.from(skillAreas).join(', ')}</p>
+                  <div className="card success">
+                    <h4>✅ Assessment Complete!</h4>
+                    <p>Analyzed {assessmentClips} video clips</p>
+                    {skillAreas.size > 0 && (
+                      <div>
+                        <strong>Skill Areas Identified:</strong>
+                        <div className="skill-tags">
+                          {Array.from(skillAreas).map((area, index) => (
+                            <span key={index} className="skill-tag">{area}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 {/* Show feedback history in results */}
                 {cumulativeFeedback.length > 0 && (
-                  <div style={{ marginBottom: '15px' }}>
-                    <h4>📋 Your Feedback Journey</h4>
-                    <details style={{ 
-                      border: '1px solid #ddd',
-                      borderRadius: '8px',
-                      padding: '10px',
-                      backgroundColor: '#f8f9fa'
-                    }}>
-                      <summary style={{ 
-                        cursor: 'pointer',
-                        fontWeight: 'bold',
-                        marginBottom: '10px'
-                      }}>
+                  <div>
+                    <h4>📋 Your Analysis Journey</h4>
+                    <details className="collapsible">
+                      <summary>
                         View All {cumulativeFeedback.length} Analysis Clips
                       </summary>
-                      <div style={{ 
-                        maxHeight: '200px', 
-                        overflowY: 'auto',
-                        marginTop: '10px'
-                      }}>
-                        {cumulativeFeedback.map((feedback, index) => (
-                          <div key={index} style={{
-                            padding: '8px',
-                            marginBottom: '6px',
-                            backgroundColor: 'white',
-                            borderRadius: '4px',
-                            borderLeft: '3px solid #28a745',
-                            fontSize: '13px'
-                          }}>
-                            <div style={{ 
-                              fontWeight: 'bold', 
-                              color: '#28a745',
-                              marginBottom: '2px' 
-                            }}>
-                              Clip {index + 1}:
+                      <div className="collapsible-content">
+                        <div className="feedback-list">
+                          {cumulativeFeedback.map((feedback, index) => (
+                            <div key={index} className="feedback-item">
+                              <div className="feedback-header">
+                                Clip {index + 1}
+                              </div>
+                              <div className="feedback-content">{feedback}</div>
                             </div>
-                            <div>{feedback}</div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     </details>
                   </div>
                 )}
                 
-                <div style={{ 
-                  padding: '15px', 
-                  backgroundColor: '#d4edda', 
-                  borderRadius: '8px',
-                  color: '#333',
-                  marginBottom: '15px'
-                }}>
-                  <h4>🎯 Final Assessment:</h4>
+                <div className="card primary">
+                  <h4>🎯 Final Assessment</h4>
                   <p>{(baselineComplete ? consolidatedAssessment : initialAssessment)?.feedback}</p>
                   
                   {(baselineComplete ? consolidatedAssessment : initialAssessment)?.technique && (
@@ -670,23 +586,16 @@ function App() {
                   })()}
                 </div>
 
-                <h4>Recommended Drills:</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <h4>🏀 Recommended Training</h4>
+                <div className="btn-grid">
                   {/* Show drill suggestion from assessment */}
                   {(baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion && (
                     <button 
+                      className="btn primary"
                       onClick={() => startDrill((baselineComplete ? consolidatedAssessment : initialAssessment)!.drillSuggestion!)} 
-                      style={{ 
-                        padding: '12px 15px',
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        fontSize: '14px'
-                      }}
                     >
-                      🎯 {(baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion} (Recommended)
+                      🎯 {(baselineComplete ? consolidatedAssessment : initialAssessment)?.drillSuggestion}
+                      <small style={{ fontSize: '0.8rem', opacity: 0.9 }}>(Recommended)</small>
                     </button>
                   )}
                   
@@ -709,18 +618,10 @@ function App() {
                     return Array.from(new Set(filteredDrills)).slice(0, 3).map((drill, index) => (
                       <button 
                         key={index}
+                        className="btn"
                         onClick={() => startDrill(drill)} 
-                        style={{ 
-                          padding: '12px 15px',
-                          backgroundColor: '#007bff',
-                          color: 'white',
-                          border: 'none',
-                          borderRadius: '5px',
-                          cursor: 'pointer',
-                          fontSize: '14px'
-                        }}
                       >
-                        🎯 {drill}
+                        🏀 {drill}
                       </button>
                     ));
                   })()
@@ -728,19 +629,11 @@ function App() {
                 </div>
                 
                 <button 
+                  className="btn secondary"
                   onClick={restartAssessment}
-                  style={{ 
-                    padding: '10px 15px',
-                    backgroundColor: '#6c757d',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    cursor: 'pointer',
-                    marginTop: '15px',
-                    fontSize: '14px'
-                  }}
+                  style={{ marginTop: 'var(--spacing-lg)', width: '100%' }}
                 >
-                  🔄 New Assessment
+                  🔄 Start New Assessment
                 </button>
               </div>
             )}
@@ -750,25 +643,14 @@ function App() {
               <div>
                 <h3>🎯 {currentDrill}</h3>
                 
-                <div style={{ 
-                  padding: '15px', 
-                  backgroundColor: '#fff3cd', 
-                  borderRadius: '8px',
-                  color: '#333',
-                  marginBottom: '15px'
-                }}>
+                <div className="card warning">
+                  <h4>🏀 Drill In Progress</h4>
                   <p>Practice this drill and I'll give you real-time feedback on your performance!</p>
                 </div>
 
                 {drillFeedback && (
-                  <div style={{ 
-                    padding: '15px', 
-                    backgroundColor: '#d4edda', 
-                    borderRadius: '8px',
-                    color: '#333',
-                    marginBottom: '15px'
-                  }}>
-                    <h4>Performance Feedback:</h4>
+                  <div className="card success">
+                    <h4>📊 Performance Feedback</h4>
                     <p>{drillFeedback.feedback}</p>
                     
                     {drillFeedback.tips && drillFeedback.tips.length > 0 && (
@@ -784,31 +666,17 @@ function App() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '10px' }}>
+                <div className="btn-grid">
                   <button 
+                    className="btn danger"
                     onClick={stopDrill}
-                    style={{ 
-                      padding: '10px 15px',
-                      backgroundColor: '#dc3545',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '5px',
-                      cursor: 'pointer'
-                    }}
                   >
                     ⏹️ Stop Drill
                   </button>
                   
                   <button 
+                    className="btn secondary"
                     onClick={restartAssessment}
-                    style={{ 
-                      padding: '10px 15px',
-                      backgroundColor: '#6c757d',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '5px',
-                      cursor: 'pointer'
-                    }}
                   >
                     🔄 New Assessment
                   </button>

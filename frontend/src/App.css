@@ -1,38 +1,584 @@
+/* ESPN-Inspired Basketball Coach Design */
+
+/* CSS Custom Properties for ESPN-style theming */
+:root {
+  /* ESPN Color Palette */
+  --espn-red: #D50A0A;
+  --espn-dark: #1a1a1a;
+  --espn-gray: #2c2c2c;
+  --espn-light-gray: #4a4a4a;
+  --espn-white: #ffffff;
+  --espn-blue: #0066cc;
+  --espn-orange: #ff6600;
+  --espn-green: #00aa00;
+  
+  /* Basketball theme colors */
+  --basketball-orange: #ee6730;
+  --basketball-brown: #b5651d;
+  --court-green: #006b3c;
+  
+  /* Typography */
+  --font-primary: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+  --font-display: 'Arial Black', 'Helvetica Neue', sans-serif;
+  
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+  
+  /* Breakpoints */
+  --mobile: 768px;
+  --tablet: 1024px;
+  --desktop: 1200px;
+}
+
+/* Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-primary);
+  background: linear-gradient(135deg, var(--espn-dark) 0%, var(--espn-gray) 100%);
+  color: var(--espn-white);
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Main App Container */
 .App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
 }
 
-.App-link {
-  color: #61dafb;
+.App-header {
+  background: linear-gradient(135deg, var(--espn-dark) 0%, var(--espn-gray) 50%, var(--basketball-orange) 100%);
+  min-height: 100vh;
+  padding: var(--spacing-lg);
+  position: relative;
+  overflow: hidden;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+/* Background Pattern */
+.App-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(circle at 25% 25%, rgba(238, 103, 48, 0.1) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, rgba(0, 102, 204, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.App-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Typography */
+h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+  background: linear-gradient(45deg, var(--espn-white), var(--basketball-orange));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--espn-white);
+  margin-bottom: var(--spacing-md);
+}
+
+h3 {
+  font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+  color: var(--basketball-orange);
+}
+
+h4 {
+  font-size: clamp(1rem, 2vw, 1.4rem);
+  color: var(--espn-blue);
+}
+
+/* Main Layout */
+.main-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-xl);
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .main-container {
+    grid-template-columns: 1fr 400px;
+    align-items: start;
   }
+}
+
+/* Video Section */
+.video-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.video-container {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.4),
+    0 0 0 2px var(--basketball-orange);
+  background: var(--espn-gray);
+  max-width: 100%;
+}
+
+.video-container video {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-width: 640px;
+}
+
+/* ESPN-style status indicator */
+.status-indicator {
+  background: linear-gradient(45deg, var(--espn-red), var(--basketball-orange));
+  color: var(--espn-white);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 12px rgba(213, 10, 10, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.status-indicator.recording {
+  background: linear-gradient(45deg, var(--espn-red), #ff4444);
+  animation: pulse 2s infinite;
+}
+
+.status-indicator::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: shimmer 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* Coaching Panel */
+.coaching-panel {
+  background: rgba(26, 26, 26, 0.95);
+  border-radius: 12px;
+  padding: var(--spacing-lg);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(238, 103, 48, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  min-height: 500px;
+}
+
+/* Card Components */
+.card {
+  background: rgba(44, 44, 44, 0.8);
+  border-radius: 8px;
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  border-left: 4px solid var(--basketball-orange);
+  backdrop-filter: blur(5px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(238, 103, 48, 0.2);
+}
+
+.card.primary {
+  border-left-color: var(--espn-blue);
+  background: rgba(0, 102, 204, 0.1);
+}
+
+.card.success {
+  border-left-color: var(--espn-green);
+  background: rgba(0, 170, 0, 0.1);
+}
+
+.card.warning {
+  border-left-color: var(--espn-orange);
+  background: rgba(255, 102, 0, 0.1);
+}
+
+/* Progress Indicators */
+.progress-container {
+  margin: var(--spacing-md) 0;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(74, 74, 74, 0.5);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--basketball-orange), var(--espn-orange));
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: progressShine 2s infinite;
+}
+
+@keyframes progressShine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.progress-text {
+  font-size: 0.9rem;
+  color: var(--espn-white);
+  margin-top: var(--spacing-xs);
+  font-weight: 600;
+}
+
+/* Feedback List */
+.feedback-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid rgba(74, 74, 74, 0.3);
+  border-radius: 8px;
+  padding: var(--spacing-sm);
+  background: rgba(26, 26, 26, 0.5);
+}
+
+.feedback-item {
+  background: rgba(44, 44, 44, 0.6);
+  border-radius: 6px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  border-left: 3px solid var(--espn-blue);
+  transition: all 0.2s ease;
+}
+
+.feedback-item:hover {
+  background: rgba(44, 44, 44, 0.8);
+  border-left-color: var(--basketball-orange);
+}
+
+.feedback-header {
+  font-weight: 700;
+  color: var(--espn-blue);
+  font-size: 0.9rem;
+  margin-bottom: var(--spacing-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.feedback-content {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--espn-white);
+}
+
+/* Buttons */
+.btn {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border: none;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  text-decoration: none;
+  background: linear-gradient(45deg, var(--espn-blue), #0088ff);
+  color: var(--espn-white);
+  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3);
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 102, 204, 0.4);
+}
+
+.btn.primary {
+  background: linear-gradient(45deg, var(--basketball-orange), var(--espn-orange));
+  box-shadow: 0 4px 12px rgba(238, 103, 48, 0.3);
+}
+
+.btn.primary:hover {
+  box-shadow: 0 6px 20px rgba(238, 103, 48, 0.4);
+}
+
+.btn.success {
+  background: linear-gradient(45deg, var(--espn-green), #00cc00);
+  box-shadow: 0 4px 12px rgba(0, 170, 0, 0.3);
+}
+
+.btn.secondary {
+  background: linear-gradient(45deg, var(--espn-light-gray), #666666);
+  box-shadow: 0 4px 12px rgba(74, 74, 74, 0.3);
+}
+
+.btn.danger {
+  background: linear-gradient(45deg, var(--espn-red), #ff3333);
+  box-shadow: 0 4px 12px rgba(213, 10, 10, 0.3);
+}
+
+/* Button Grid */
+.btn-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) 0;
+}
+
+@media (min-width: 600px) {
+  .btn-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Collapsible Details */
+.collapsible {
+  border: 1px solid rgba(74, 74, 74, 0.3);
+  border-radius: 8px;
+  background: rgba(26, 26, 26, 0.5);
+  overflow: hidden;
+}
+
+.collapsible summary {
+  background: rgba(44, 44, 44, 0.6);
+  padding: var(--spacing-md);
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--basketball-orange);
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+.collapsible summary:hover {
+  background: rgba(44, 44, 44, 0.8);
+}
+
+.collapsible-content {
+  padding: var(--spacing-md);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Skill Areas Tags */
+.skill-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-md) 0;
+}
+
+.skill-tag {
+  background: linear-gradient(45deg, var(--court-green), #008844);
+  color: var(--espn-white);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(0, 107, 60, 0.3);
+}
+
+/* Error States */
+.error-container {
+  background: rgba(213, 10, 10, 0.1);
+  border: 1px solid var(--espn-red);
+  border-radius: 8px;
+  padding: var(--spacing-lg);
+  color: var(--espn-white);
+  text-align: center;
+  max-width: 600px;
+  margin: var(--spacing-xl) auto;
+}
+
+.error-container h3 {
+  color: var(--espn-red);
+  margin-bottom: var(--spacing-md);
+}
+
+/* Responsive Design */
+@media (max-width: 767px) {
+  .App-header {
+    padding: var(--spacing-md);
+  }
+  
+  .main-container {
+    gap: var(--spacing-lg);
+    padding: var(--spacing-md);
+  }
+  
+  .coaching-panel {
+    padding: var(--spacing-md);
+  }
+  
+  h1 {
+    font-size: 1.8rem;
+    letter-spacing: 1px;
+  }
+  
+  .btn {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.9rem;
+  }
+  
+  .video-container {
+    width: 100%;
+  }
+  
+  .video-container video {
+    width: 100%;
+    height: auto;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  .main-container {
+    max-width: 800px;
+    padding: var(--spacing-lg);
+  }
+}
+
+@media (min-width: 1024px) {
+  .video-section {
+    justify-self: center;
+  }
+  
+  .coaching-panel {
+    position: sticky;
+    top: var(--spacing-lg);
+    max-height: calc(100vh - var(--spacing-xl));
+    overflow-y: auto;
+  }
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(44, 44, 44, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--basketball-orange), var(--espn-orange));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--espn-orange), var(--basketball-orange));
+}
+
+/* Loading States */
+.loading {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: var(--basketball-orange);
+  animation: spin 1s ease-in-out infinite;
+  margin-right: var(--spacing-sm);
+}
+
+@keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Focus States for Accessibility */
+.btn:focus,
+.collapsible summary:focus {
+  outline: 2px solid var(--basketball-orange);
+  outline-offset: 2px;
+}
+
+/* High Contrast Support */
+@media (prefers-contrast: high) {
+  :root {
+    --espn-dark: #000000;
+    --espn-white: #ffffff;
+  }
+  
+  .card {
+    border-width: 2px;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
