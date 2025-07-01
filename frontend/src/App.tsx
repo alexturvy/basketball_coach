@@ -13,7 +13,22 @@ interface CoachingResponse {
   tips?: string[];
 }
 
-type AppPhase = 'initial' | 'assessing' | 'results' | 'drilling';
+interface DrillExample {
+  title: string;
+  url: string;
+  duration: string;
+  focus: string;
+}
+
+interface DrillInfo {
+  category: string;
+  description: string;
+  youtube_examples: DrillExample[];
+  key_points: string[];
+  common_mistakes: string[];
+}
+
+type AppPhase = 'initial' | 'assessing' | 'results' | 'drilling' | 'drill-watching' | 'drill-practicing';
 
 function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -41,6 +56,9 @@ function App() {
   const [skillAreas, setSkillAreas] = useState<Set<string>>(new Set());
   const [baselineComplete, setBaselineComplete] = useState<boolean>(false);
   const [consolidatedAssessment, setConsolidatedAssessment] = useState<CoachingResponse | null>(null);
+  const [selectedDrillInfo, setSelectedDrillInfo] = useState<DrillInfo | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [drillPhase, setDrillPhase] = useState<'watching' | 'practicing' | 'completed'>('watching');
   
   const prevFrameData = useRef<Uint8ClampedArray | null>(null);
   const lastAnalysisTime = useRef<number>(0);
@@ -249,8 +267,8 @@ function App() {
           setIsAnalysisActive(false);
           pauseVideo();
         }
-      } else if (phase === 'drilling') {
-        // Use old endpoint for drill-specific feedback
+      } else if (phase === 'drilling' || phase === 'drill-practicing') {
+        // Use drill-specific feedback endpoint
         const drillFormData = new FormData();
         drillFormData.append('video', videoBlob, 'sequence.webm');
         drillFormData.append('drill', currentDrill || 'general');
@@ -263,7 +281,9 @@ function App() {
         if (drillResponse.ok) {
           const drillData = await drillResponse.json();
           setDrillFeedback(drillData);
-          setFeedback(`${currentDrill} - ${drillData.feedback}`);
+          setFeedback(`Practice complete - Check your feedback below`);
+          setIsAnalysisActive(false);
+          pauseVideo();
         }
       }
     } catch (error) {
@@ -409,11 +429,35 @@ function App() {
     return () => clearInterval(interval);
   }, [isRecording, currentDrill, phase, isAnalysisActive]);
 
-  const startDrill = (drillName: string) => {
-    setCurrentDrill(drillName);
-    setPhase('drilling');
-    setDrillFeedback(null);
-    setFeedback(`Starting ${drillName} drill. Begin dribbling to get feedback!`);
+  const startDrill = async (drillName: string) => {
+    try {
+      // Fetch drill information including YouTube examples
+      const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:8000'}/drill/${drillName}`);
+      if (response.ok) {
+        const drillInfo = await response.json();
+        setSelectedDrillInfo(drillInfo);
+        setCurrentDrill(drillName);
+        setPhase('drill-watching');
+        setDrillPhase('watching');
+        setDrillFeedback(null);
+        setFeedback(`Learning ${drillName} - Watch the examples first`);
+      }
+    } catch (error) {
+      console.error('Error fetching drill info:', error);
+      // Fallback to old behavior
+      setCurrentDrill(drillName);
+      setPhase('drilling');
+      setDrillFeedback(null);
+      setFeedback(`Starting ${drillName} drill. Begin dribbling to get feedback!`);
+    }
+  };
+  
+  const startDrillPractice = () => {
+    setPhase('drill-practicing');
+    setDrillPhase('practicing');
+    setIsAnalysisActive(true);
+    setFeedback('Ready to practice! Start dribbling to begin recording.');
+    resumeVideo();
   };
 
   const stopDrill = () => {
@@ -496,6 +540,8 @@ function App() {
     setSkillAreas(new Set());
     setBaselineComplete(false);
     setConsolidatedAssessment(null);
+    setSelectedDrillInfo(null);
+    setDrillPhase('watching');
     setIsAnalysisActive(false);
     setVideoPaused(false);
     setFeedback("Ready to analyze your dribbling");
@@ -746,7 +792,124 @@ function App() {
               </div>
             )}
 
-            {/* Drilling Phase */}
+            {/* Drill Watching Phase */}
+            {phase === 'drill-watching' && currentDrill && selectedDrillInfo && (
+              <div>
+                <h3>📺 Learn: {currentDrill}</h3>
+                
+                <div className="card primary">
+                  <h4>Drill Overview</h4>
+                  <p>{selectedDrillInfo.description}</p>
+                </div>
+                
+                {selectedDrillInfo.youtube_examples.length > 0 && (
+                  <div>
+                    <h4>🎥 Watch These Examples</h4>
+                    {selectedDrillInfo.youtube_examples.map((example, index) => (
+                      <div key={index} className="card" style={{ marginBottom: 'var(--spacing-md)' }}>
+                        <h4>{example.title}</h4>
+                        <p><strong>Focus:</strong> {example.focus}</p>
+                        <p><strong>Duration:</strong> {example.duration}</p>
+                        <a 
+                          href={example.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="btn primary"
+                          style={{ width: '100%', marginTop: 'var(--spacing-sm)' }}
+                        >
+                          🎥 Watch on YouTube
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                <div className="card">
+                  <h4>🎯 Key Points to Focus On</h4>
+                  <ul style={{ paddingLeft: 'var(--spacing-lg)', fontSize: '0.9rem' }}>
+                    {selectedDrillInfo.key_points.map((point, index) => (
+                      <li key={index}>{point}</li>
+                    ))}
+                  </ul>
+                </div>
+                
+                <div className="card warning">
+                  <h4>⚠️ Common Mistakes to Avoid</h4>
+                  <ul style={{ paddingLeft: 'var(--spacing-lg)', fontSize: '0.9rem' }}>
+                    {selectedDrillInfo.common_mistakes.map((mistake, index) => (
+                      <li key={index}>{mistake}</li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="btn-grid">
+                  <button 
+                    className="btn primary"
+                    onClick={startDrillPractice}
+                    style={{ width: '100%' }}
+                  >
+                    🏀 Start Practicing
+                  </button>
+                  
+                  <button 
+                    className="btn secondary"
+                    onClick={restartAssessment}
+                  >
+                    🔄 Back to Analysis
+                  </button>
+                </div>
+              </div>
+            )}
+            
+            {/* Drill Practicing Phase */}
+            {phase === 'drill-practicing' && currentDrill && (
+              <div>
+                <h3>🏀 Practice: {currentDrill}</h3>
+                
+                {selectedDrillInfo && (
+                  <div className="card primary">
+                    <h4>Remember to Focus On:</h4>
+                    <ul style={{ paddingLeft: 'var(--spacing-lg)', fontSize: '0.85rem' }}>
+                      {selectedDrillInfo.key_points.slice(0, 3).map((point, index) => (
+                        <li key={index}>{point}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {drillFeedback && (
+                  <div className="card success">
+                    <h4>📝 Practice Feedback</h4>
+                    <p>{drillFeedback.feedback}</p>
+                  </div>
+                )}
+
+                <div className="btn-grid">
+                  <button 
+                    className="btn danger"
+                    onClick={stopDrill}
+                  >
+                    ⏹️ Stop Practice
+                  </button>
+                  
+                  <button 
+                    className="btn secondary"
+                    onClick={() => setPhase('drill-watching')}
+                  >
+                    📺 Review Examples
+                  </button>
+                  
+                  <button 
+                    className="btn secondary"
+                    onClick={restartAssessment}
+                  >
+                    🔄 New Analysis
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Legacy Drilling Phase */}
             {phase === 'drilling' && currentDrill && (
               <div>
                 <h3>🎯 {currentDrill}</h3>
