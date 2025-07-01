@@ -405,12 +405,16 @@ async def progressive_analysis(video: UploadFile = File(...), sessionId: str = F
     try:
         # Get or create analysis session
         if sessionId not in analysis_sessions:
+            print(f"Creating new session: {sessionId}")
             analysis_sessions[sessionId] = AnalysisSession(sessionId=sessionId)
+        else:
+            print(f"Using existing session: {sessionId} with {len(analysis_sessions[sessionId].feedbackList)} existing clips")
         
         session = analysis_sessions[sessionId]
         
         # Check if session is already saturated
         if session.saturated:
+            print(f"Session {sessionId} is already saturated")
             return {
                 "saturated": True,
                 "consolidatedFeedback": session.consolidatedFeedback.dict() if session.consolidatedFeedback else None,
